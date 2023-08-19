@@ -24,6 +24,7 @@ class MarkovModel:
         self.note_nminus1grams = {}  # numbers -> how many
         self.note_nminus1grams_without_octaves = {}  # strings -> how many
 
+        # default for beat = quarter note, changed in process_midi if beat value is different
         self.length_precision = self.mid.ticks_per_beat // 8
 
         # NOTE LENGTHS

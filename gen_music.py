@@ -39,7 +39,6 @@ def choose_next_note(mm: MarkovModel, prev_notes: tuple, with_octave=True):
     note_choice = np.random.choice(notes, p=ppbs)
     # if not with_octave:
     #     note_choice = utils.get_note_name(note_choice)
-    print(f"Chosen {note_choice} after {prev_notes}")
     return note_choice
 
 
@@ -77,26 +76,24 @@ def choose_next_length(mm: MarkovModel, prev: tuple, if_note_length: bool):
     # print(sum(ppbs))
 
     length_choice = np.random.choice([i for i in valid_lengths], p=ppbs)
-    print(
-        f"Chosen {length_choice} {'note length' if if_note_length else 'interval'} after {prev}"
-    )
     return length_choice
 
 
 # TODO: add helper functions (shorten!)
 def generate_music(
     mm: MarkovModel,
-    bars: int,
-    instrument: int,
-    use_note_length_ngrams: bool,
-    use_interval_ngrams: bool,
+    bars: int = 10,
+    instrument: int = 0,
+    use_time_signature: bool = True,
+    use_length_ngrams: bool = False,
     interval_ppbs: list[float] = [0.5, 0.3, 0.2],
     note_length_ppbs: list[float] = [0.05, 0.1, 0.3, 0.4, 0.1, 0.05],
 ):
-    if not use_note_length_ngrams and use_interval_ngrams:
-        raise ValueError(
-            "Using interval ngrams without note length ngrams not supported!"
-        )
+    def in_time_signature(length: int, time_in_strong_beat: int, time_in_bar: int):
+        return time_in_strong_beat + length < strong_beat_length or (
+            (time_in_strong_beat + length) % strong_beat_length == 0
+            and (time_in_bar < bar_length or (time_in_bar + length) % bar_length == 0)
+        )  # accepts note lengths which end later strong beat part, but don't cross next bar start, or end exactly with some bar
 
     if len(note_length_ppbs) != 6:
         raise ValueError(
@@ -128,8 +125,6 @@ def generate_music(
     # INSTRUMENT
     track.append(Message("program_change", program=instrument, time=0))
 
-    # my thinking: no clear way to provide time signature (with strong beats) when using ngrams for note lengths AND intervals
-    use_time_signature = not use_interval_ngrams
     # TIME SIGNATURE CHOICE - TODO: add custom time signature?
     if use_time_signature:
         if (
@@ -172,16 +167,39 @@ def generate_music(
     )  # could be also parameterized
     first_notes = list(prev_notes)
 
-    if use_note_length_ngrams:
-        prev_note_lengths = random.choice(
-            list(mm.note_length_nminus1grams.keys())
-        )  # could be also parameterized
-        first_note_lengths = list(prev_note_lengths)
-    if use_interval_ngrams:
-        prev_intervals = random.choice(
-            list(mm.interval_nminus1grams.keys())
-        )  # could be also parameterized
-        first_intervals = list(prev_intervals)
+    if use_length_ngrams:
+        while True:
+            prev_note_lengths = random.choice(
+                list(mm.note_length_nminus1grams.keys())
+            )  # could be also parameterized
+            first_note_lengths = list(prev_note_lengths)
+            prev_intervals = random.choice(
+                list(mm.interval_nminus1grams.keys())
+            )  # could be also parameterized
+            first_intervals = list(prev_intervals)
+        
+            # ugly check if first note lengths and intervals fit the time signature
+            if use_time_signature:
+                valid = True
+                test_time_in_bar, test_time_in_strong_beat = 0, 0
+                for i in range(mm.n - 1):
+                    
+                    note_length = first_note_lengths[i]
+                    if not in_time_signature(note_length, test_time_in_bar, test_time_in_strong_beat):
+                        valid = False
+                        break
+                    test_time_in_strong_beat = (test_time_in_strong_beat + note_length) % strong_beat_length
+                    test_time_in_bar = (test_time_in_bar + note_length) % bar_length
+                    interval = first_intervals[i]
+                    if not in_time_signature(interval, test_time_in_bar, test_time_in_strong_beat):
+                        valid = False
+                        break
+                    test_time_in_strong_beat = (test_time_in_strong_beat + interval) % strong_beat_length
+                    test_time_in_bar = (test_time_in_bar + interval) % bar_length
+                if valid:
+                    break
+            else:
+                break
 
     interval = 0
     bar = 0
@@ -196,20 +214,28 @@ def generate_music(
                 raise RuntimeError(
                     "Couldn't find next note and finish track. Try again or set smaller n."
                 )  # ugly error for now
+            print(f"Chosen {next_note} note after {prev_notes}")
             prev_notes = prev_notes[1:] + (next_note,)
 
         track.append(Message("note_on", note=next_note, time=int(interval)))
 
-        if use_note_length_ngrams:
+        if use_length_ngrams:
             # NOTE LENGTH FROM NGRAMS
             if first_note_lengths:
                 note_length = first_note_lengths.pop(0)
             else:
-                note_length = choose_next_length(mm, prev_note_lengths, True)
-                if note_length is None:
-                    raise RuntimeError(
-                        "Couldn't find next note length and finish track. Try again, set smaller n or disable note length and interval ngrams."
-                    )  # ugly error for now
+                while True:
+                    note_length = choose_next_length(mm, prev_note_lengths, True)
+                    if note_length is None:
+                        raise RuntimeError(
+                            "Couldn't find next note length and finish track. Try again, set smaller n or disable note length and interval ngrams."
+                        )  # ugly error for now
+                    if use_time_signature:
+                        if in_time_signature(note_length, time_in_strong_beat, time_in_bar):
+                            break
+                    else:
+                        break
+                print(f"Chosen {note_length} note length after {prev_note_lengths}")
                 prev_note_lengths = prev_note_lengths[1:] + (note_length,)
         else:
             # RANDOM NOTE LENGTH
@@ -222,19 +248,15 @@ def generate_music(
                     ],
                     p=note_length_ppbs,
                 )
-                if time_in_strong_beat + note_length < strong_beat_length or (
-                    (time_in_strong_beat + note_length) % strong_beat_length == 0
-                    and (
-                        time_in_bar < bar_length
-                        or (time_in_bar + note_length) % bar_length == 0
-                    ) # accepts note lengths which end later strong beat part, but don't cross next bar start, or end exactly with some bar
-                ):
+                if use_time_signature:
+                    if in_time_signature(note_length, time_in_strong_beat, time_in_bar):
+                        break
+                else:
                     break
+            print(f"Chosen {note_length} note length")
 
         if use_time_signature:
-            strong_beat += (
-                time_in_strong_beat + note_length
-            ) // strong_beat_length
+            strong_beat += (time_in_strong_beat + note_length) // strong_beat_length
             time_in_strong_beat = (
                 time_in_strong_beat + note_length
             ) % strong_beat_length
@@ -244,16 +266,23 @@ def generate_music(
 
         track.append(Message("note_off", note=next_note, time=int(note_length)))
 
-        if use_interval_ngrams:  # given - used note length ngrams
+        if use_length_ngrams:  # given - used note length ngrams
             # INTERVAL FROM NGRAMS
             if first_intervals:
                 interval = first_intervals.pop(0)
             else:
-                interval = choose_next_length(mm, prev_intervals, False)
-                if interval is None:
-                    raise RuntimeError(
-                        "Couldn't find next interval and finish track. Try again, set smaller n or disable note length and interval ngrams."
-                    )  # ugly error for now
+                while True:
+                    interval = choose_next_length(mm, prev_intervals, False)
+                    if interval is None:
+                        raise RuntimeError(
+                            "Couldn't find next interval and finish track. Try again, set smaller n or disable note length and interval ngrams."
+                        )  # ugly error for now
+                    if use_time_signature:
+                        if in_time_signature(interval, time_in_strong_beat, time_in_bar):
+                            break
+                    else:
+                        break
+                print(f"Chosen {interval} interval after {prev_intervals}")
                 prev_intervals = prev_intervals[1:] + (interval,)
         else:
             # RANDOM INTERVAL
@@ -263,22 +292,20 @@ def generate_music(
                     [0, strong_beat_length - time_in_strong_beat, note_length],
                     p=interval_ppbs,
                 )
-                if time_in_strong_beat + interval < strong_beat_length or (
-                    (time_in_strong_beat + interval) % strong_beat_length == 0
-                    and (
-                        time_in_bar < bar_length
-                        or (time_in_bar + interval) % bar_length == 0
-                    ) # accepts intervals which end later strong beat part, but don't cross next bar start, or end exactly with some bar
-                ):
+                if use_time_signature:
+                    if in_time_signature(interval, time_in_strong_beat, time_in_bar):
+                        break
+                else:
                     break
+            print(f"Chosen {interval} interval")
 
         if use_time_signature:
-            strong_beat += (
-                time_in_strong_beat + interval
-            ) // strong_beat_length
-            time_in_strong_beat = (
-                time_in_strong_beat + interval
-            ) % strong_beat_length
+            if time_in_strong_beat == 0:
+                interval = 0
+                print(f"Correcting interval to 0 to stay in time signature")
+            else:
+                strong_beat += (time_in_strong_beat + interval) // strong_beat_length
+                time_in_strong_beat = (time_in_strong_beat + interval) % strong_beat_length
 
         bar += (time_in_bar + interval) // bar_length
         time_in_bar = (time_in_bar + interval) % bar_length
@@ -294,18 +321,16 @@ def generate_music(
 
 
 # parse arguments - will be expanded and moved to main file
-n = 7
+n = 4
 filename = "ragtime.mid"
 
 if n < 2:
     raise ValueError("n must be >= 2!")
 
 mm = MarkovModel(n, filename)
-# generate_music(mm, 40, 4, True, True)
-generate_music(mm, 40, 1, False, False, [1, 0, 0], [0, 0, 0.5, 0.5, 0, 0])
-# generate_music(mm, 40, 4, False, False)
 
-# don't use ppb of note length interval = 1 with True, False (infinite loop!)
-# generate_music(mm, 40, 4, True, False, [0, 0, 1])
+generate_music(mm, bars=10, instrument=1, use_time_signature=True, use_length_ngrams=True)
+# generate_music(mm, bars=20, instrument=1, use_time_signature=True, use_length_ngrams=False, note_length_ppbs=[0.05, 0.3, 0.45, 0.2, 0, 0], interval_ppbs=[0.2, 0, 0.8])
 
-# generate_music(mm, 40, 4, True, False, [0.2, 0.3, 0.5])
+# generate_music(mm, bars=20, instrument=1, use_time_signature=False, use_length_ngrams=True)
+# generate_music(mm, bars=20, instrument=1, use_time_signature=False, use_length_ngrams=False)
