@@ -4,8 +4,9 @@ from mido import MidiFile, MetaMessage
 
 
 class MarkovModel:
-    def __init__(self, n: int, filepath: str):
-        self.n = n
+    def __init__(self, n: int, m: int, filepath: str):
+        self.n = n # note n-grams
+        self.m = m # length m-grams
         self.filepath = filepath
 
         self.mid = MidiFile(os.path.join(os.path.dirname(__file__), filepath))
@@ -30,10 +31,12 @@ class MarkovModel:
         # NOTE LENGTHS
         self.note_length_ngrams = {}
         self.note_length_nminus1grams = {}
+        self.note_length_counts = {}
 
         # INTERVALS
         self.interval_ngrams = {}
         self.interval_nminus1grams = {}
+        self.interval_counts = {}
 
         # main is currently first, maybe it should be the longest?
         self.main_tempo, self.main_beats_per_bar, self.main_beat_value = 0, 0, 0
@@ -65,7 +68,8 @@ class MarkovModel:
                         currently_playing_notes_starts[msg.note] = total_time
                         # round up
                         intervals.append(
-                            (interval // self.length_precision + 1)
+                            # better round up or down? I want 0 length intervals
+                            (interval // self.length_precision)
                             * self.length_precision
                         )
                         notes.append(msg.note)
@@ -78,9 +82,10 @@ class MarkovModel:
                         # round up
                         note_lengths.append(
                             (
+                                # better round up or down? I don't want 0 length notes
                                 start,
                                 ((total_time - start) // self.length_precision + 1)
-                                * self.length_precision,
+                                * self.length_precision
                             )
                         )
                         interval = 0
@@ -91,9 +96,14 @@ class MarkovModel:
             print(f"Track {track_idx} note lengths: \n{note_lengths}")
             print(f"Track {track_idx} intervals: \n{intervals}")
 
-            self.__count_track_note_ngrams(notes)
-            self.__count_track_length_ngrams(note_lengths, True)
-            self.__count_track_length_ngrams(intervals, False)
+            if notes:
+                self.__count_track_note_ngrams(notes)
+
+                self.__count_track_length_ngrams(note_lengths, True)
+                self.__count_track_length_ngrams(intervals, False)
+
+                self.__count_track_length_occurences(note_lengths, True)
+                self.__count_track_length_occurences(intervals, False)
 
         print(f"\nNotes n-grams: \n{self.note_ngrams}\n")
         print(f"Notes n-grams without octaves: \n{self.note_ngrams_without_octaves}\n")
@@ -101,6 +111,9 @@ class MarkovModel:
         print(
             f"Notes n-1-grams without octaves: \n{self.note_nminus1grams_without_octaves}\n"
         )
+
+        print(f"Note length counts: \n{self.note_length_counts}")
+        print(f"Interval counts: \n{self.interval_counts}")
 
     def __read_meta_message(self, msg: MetaMessage):
         # TODO: do I need current tempo, key etc. for anything?
@@ -188,10 +201,10 @@ class MarkovModel:
             ngrams = self.interval_ngrams
             nminus1grams = self.interval_nminus1grams
 
-        for length_idx in range(len(lengths) - self.n + 2):
+        for length_idx in range(len(lengths) - self.m + 2):
             # count n-1-gram
             nminus1gram = tuple(
-                [lengths[length_idx + offset] for offset in range(self.n - 1)]
+                [lengths[length_idx + offset] for offset in range(self.m - 1)]
             )
 
             if nminus1grams.get(nminus1gram) is not None:
@@ -200,10 +213,24 @@ class MarkovModel:
                 nminus1grams[nminus1gram] = 1
 
             # not last n-1 notes -> count n-gram
-            if length_idx != len(lengths) - self.n + 1:
-                ngram = nminus1gram + (lengths[length_idx + self.n - 1],)
+            if length_idx != len(lengths) - self.m + 1:
+                ngram = nminus1gram + (lengths[length_idx + self.m - 1],)
 
                 if ngrams.get(ngram) is not None:
                     ngrams[ngram] += 1
                 else:
                     ngrams[ngram] = 1
+
+    def __count_track_length_occurences(self, lengths: list[int], if_note_lengths: bool):
+        max_length = max(lengths)
+        
+        if if_note_lengths:
+            counts = self.note_length_counts
+        else:
+            counts = self.interval_counts
+
+        for length in range(0, max_length+1, self.length_precision):
+            if counts.get(length) is None:
+                counts[length] = lengths.count(length)
+            else:
+                counts[length] += lengths.count(length)

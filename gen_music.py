@@ -8,7 +8,7 @@ from markov import MarkovModel
 
 
 def choose_next_note(mm: MarkovModel, prev_notes: tuple, with_octave=True):
-    if len(prev_notes) != n - 1:
+    if len(prev_notes) != mm.n - 1:
         raise ValueError("With n-gram there has to be n-1 previous notes!")
 
     ppbs = []
@@ -43,9 +43,9 @@ def choose_next_note(mm: MarkovModel, prev_notes: tuple, with_octave=True):
 
 
 def choose_next_length(mm: MarkovModel, prev: tuple, if_note_length: bool):
-    if len(prev) != n - 1:
+    if len(prev) != mm.m - 1:
         raise ValueError(
-            f"With n-gram there has to be n-1 previous {'note lengths' if if_note_length else 'intervals'}!"
+            f"With m-gram there has to be n-1 previous {'note lengths' if if_note_length else 'intervals'}!"
         )
 
     # 0 to 2 whole notes
@@ -82,18 +82,23 @@ def choose_next_length(mm: MarkovModel, prev: tuple, if_note_length: bool):
 # TODO: add helper functions (shorten!)
 def generate_music(
     mm: MarkovModel,
-    bars: int = 10,
-    instrument: int = 0,
-    use_time_signature: bool = True,
-    use_length_ngrams: bool = False,
+    bars: int,
+    instrument: int,
+    use_time_signature: bool,
+    use_length_ngrams: bool,
+    only_high_notes: bool = False,
     interval_ppbs: list[float] = [0.5, 0.3, 0.2],
     note_length_ppbs: list[float] = [0.05, 0.1, 0.3, 0.4, 0.1, 0.05],
 ):
+    # tricky!
     def in_time_signature(length: int, time_in_strong_beat: int, time_in_bar: int):
-        return time_in_strong_beat + length < strong_beat_length or (
-            (time_in_strong_beat + length) % strong_beat_length == 0
-            and (time_in_bar < bar_length or (time_in_bar + length) % bar_length == 0)
-        )  # accepts note lengths which end later strong beat part, but don't cross next bar start, or end exactly with some bar
+        return time_in_strong_beat + length <= strong_beat_length or (
+        #     (time_in_strong_beat + length) % strong_beat_length == 0
+        #     and (time_in_bar < bar_length or (time_in_bar + length) % bar_length == 0)
+        # )  # accepts note lengths which end later strong beat part, but don't cross next bar start, or end exactly with some bar
+            time_in_bar == 0 and (time_in_strong_beat + length) % strong_beat_length == 0
+            # notes longer than strong beat part only start with bar and end with some strong beat part
+        )
 
     if len(note_length_ppbs) != 6:
         raise ValueError(
@@ -162,10 +167,17 @@ def generate_music(
         time_in_bar = 0
 
     # NGRAMS
-    prev_notes = random.choice(
-        list(mm.note_nminus1grams.keys())
-    )  # could be also parameterized
-    first_notes = list(prev_notes)
+    while True:
+        prev_notes = random.choice(
+            list(mm.note_nminus1grams.keys())
+        )  # could be also parameterized
+        first_notes = list(prev_notes)
+
+        if only_high_notes:
+            if all(map(lambda x: x >= utils.HIGH_NOTES_THRESHOLD, first_notes)):
+                break
+        else:
+            break
 
     if use_length_ngrams:
         while True:
@@ -182,8 +194,7 @@ def generate_music(
             if use_time_signature:
                 valid = True
                 test_time_in_bar, test_time_in_strong_beat = 0, 0
-                for i in range(mm.n - 1):
-                    
+                for i in range(mm.m - 1):
                     note_length = first_note_lengths[i]
                     if not in_time_signature(note_length, test_time_in_bar, test_time_in_strong_beat):
                         valid = False
@@ -208,12 +219,19 @@ def generate_music(
         # NOTE CHOICE
         if first_notes:
             next_note = first_notes.pop(0)
+            print(f"Chosen {next_note} note")
         else:
-            next_note = choose_next_note(mm, prev_notes, True)
-            if next_note is None:
-                raise RuntimeError(
-                    "Couldn't find next note and finish track. Try again or set smaller n."
-                )  # ugly error for now
+            while True:
+                next_note = choose_next_note(mm, prev_notes, True)
+                if next_note is None:
+                    raise RuntimeError(
+                        "Couldn't find next note and finish track. Try again or set smaller n."
+                    )  # ugly error for now
+                if only_high_notes:
+                    if next_note >= utils.HIGH_NOTES_THRESHOLD:
+                        break
+                else:
+                    break
             print(f"Chosen {next_note} note after {prev_notes}")
             prev_notes = prev_notes[1:] + (next_note,)
 
@@ -246,7 +264,7 @@ def generate_music(
                         new_mid.ticks_per_beat // (32 // beat_value) * k
                         for k in [1, 2, 4, 8, 16, 32]
                     ],
-                    p=note_length_ppbs,
+                    p=note_length_ppbs
                 )
                 if use_time_signature:
                     if in_time_signature(note_length, time_in_strong_beat, time_in_bar):
@@ -290,7 +308,7 @@ def generate_music(
                 # not ideal - maybe want to insert another note in the strong beat part, but not with 0 or note_length interval
                 interval = np.random.choice(
                     [0, strong_beat_length - time_in_strong_beat, note_length],
-                    p=interval_ppbs,
+                    p=interval_ppbs
                 )
                 if use_time_signature:
                     if in_time_signature(interval, time_in_strong_beat, time_in_bar):
@@ -300,7 +318,7 @@ def generate_music(
             print(f"Chosen {interval} interval")
 
         if use_time_signature:
-            if time_in_strong_beat == 0:
+            if time_in_strong_beat == 0 and interval != 0:
                 interval = 0
                 print(f"Correcting interval to 0 to stay in time signature")
             else:
@@ -322,15 +340,21 @@ def generate_music(
 
 # parse arguments - will be expanded and moved to main file
 n = 4
-filename = "ragtime.mid"
+m = 2
+filename = "mozart.mid"
 
 if n < 2:
     raise ValueError("n must be >= 2!")
+if m < 2:
+    raise ValueError("m must be >= 2!")
 
-mm = MarkovModel(n, filename)
+# if user doesn't set m, then make m = n
+mm = MarkovModel(n, m, filename)
 
-generate_music(mm, bars=10, instrument=1, use_time_signature=True, use_length_ngrams=True)
-# generate_music(mm, bars=20, instrument=1, use_time_signature=True, use_length_ngrams=False, note_length_ppbs=[0.05, 0.3, 0.45, 0.2, 0, 0], interval_ppbs=[0.2, 0, 0.8])
+# generate_music(mm, bars=10, instrument=1, use_time_signature=True, use_length_ngrams=False)
+# generate_music(mm, bars=10, instrument=1, use_time_signature=True, use_length_ngrams=True)
+generate_music(mm, bars=20, instrument=1, use_time_signature=True, use_length_ngrams=False, 
+               note_length_ppbs=[0.05, 0.3, 0.45, 0.2, 0, 0], interval_ppbs=[0.2, 0, 0.8], only_high_notes=True)
 
-# generate_music(mm, bars=20, instrument=1, use_time_signature=False, use_length_ngrams=True)
+# generate_music(mm, bars=20, instrument=1, use_time_signature=True, use_length_ngrams=True)
 # generate_music(mm, bars=20, instrument=1, use_time_signature=False, use_length_ngrams=False)

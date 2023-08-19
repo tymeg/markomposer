@@ -3,6 +3,8 @@ DEFAULT_BEATS_PER_BAR = 4
 DEFAULT_BEAT_VALUE = 4
 DEFAULT_TEMPO = 500000
 
+HIGH_NOTES_THRESHOLD = 60
+
 notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 # intervals in half notes
