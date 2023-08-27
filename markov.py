@@ -1,12 +1,13 @@
 import os
 import utils
 from mido import MidiFile, MetaMessage
+import math
 
 
 class MarkovModel:
-    def __init__(self, n: int, m: int, filepath: str):
-        self.n = n # note n-grams
-        self.m = m # length m-grams
+    def __init__(self, n: int, m: int, filepath: str) -> None:
+        self.n = n  # note n-grams
+        self.m = m  # length m-grams
         self.filepath = filepath
 
         self.mid = MidiFile(os.path.join(os.path.dirname(__file__), filepath))
@@ -44,7 +45,7 @@ class MarkovModel:
 
         self.__process_midi(self.mid)
 
-    def __process_midi(self, mid: MidiFile):
+    def __process_midi(self, mid: MidiFile) -> None:
         for track_idx, track in enumerate(mid.tracks):
             total_time = 0
             notes = []
@@ -69,7 +70,7 @@ class MarkovModel:
                         # round up
                         intervals.append(
                             # better round up or down? I want 0 length intervals
-                            (interval // self.length_precision)
+                            math.floor(interval / self.length_precision)
                             * self.length_precision
                         )
                         notes.append(msg.note)
@@ -84,8 +85,9 @@ class MarkovModel:
                             (
                                 # better round up or down? I don't want 0 length notes
                                 start,
-                                ((total_time - start) // self.length_precision + 1)
+                                math.ceil((total_time - start) / self.length_precision)
                                 * self.length_precision
+                                # total_time - start
                             )
                         )
                         interval = 0
@@ -115,7 +117,7 @@ class MarkovModel:
         print(f"Note length counts: \n{self.note_length_counts}")
         print(f"Interval counts: \n{self.interval_counts}")
 
-    def __read_meta_message(self, msg: MetaMessage):
+    def __read_meta_message(self, msg: MetaMessage) -> None:
         # TODO: do I need current tempo, key etc. for anything?
         if msg.type == "set_tempo":
             current_tempo = msg.tempo
@@ -140,7 +142,7 @@ class MarkovModel:
                 self.main_key = current_key
             print(f"Key: {current_key}")
 
-    def __count_track_note_ngrams(self, notes: list[int]):
+    def __count_track_note_ngrams(self, notes: list[int]) -> None:
         # UGLY!
         for note_idx in range(len(notes) - self.n + 2):
             # count n-1-gram
@@ -193,7 +195,9 @@ class MarkovModel:
                     else:
                         self.note_ngrams_without_octaves[ngram_without_octaves] = 1
 
-    def __count_track_length_ngrams(self, lengths: list[int], if_note_lengths: bool):
+    def __count_track_length_ngrams(
+        self, lengths: list[int], if_note_lengths: bool
+    ) -> None:
         if if_note_lengths:
             ngrams = self.note_length_ngrams
             nminus1grams = self.note_length_nminus1grams
@@ -221,15 +225,17 @@ class MarkovModel:
                 else:
                     ngrams[ngram] = 1
 
-    def __count_track_length_occurences(self, lengths: list[int], if_note_lengths: bool):
+    def __count_track_length_occurences(
+        self, lengths: list[int], if_note_lengths: bool
+    ) -> None:
         max_length = max(lengths)
-        
+
         if if_note_lengths:
             counts = self.note_length_counts
         else:
             counts = self.interval_counts
 
-        for length in range(0, max_length+1, self.length_precision):
+        for length in range(0, max_length + 1, self.length_precision):
             if counts.get(length) is None:
                 counts[length] = lengths.count(length)
             else:
