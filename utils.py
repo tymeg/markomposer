@@ -3,7 +3,7 @@ DEFAULT_BEATS_PER_BAR = 4
 DEFAULT_BEAT_VALUE = 4
 DEFAULT_TEMPO = 500000
 
-HIGH_NOTES_THRESHOLD = 60
+HIGH_NOTES_THRESHOLD = 48
 
 notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
@@ -16,6 +16,7 @@ note_lengths = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32]
 major_intervals = [2, 2, 1, 2, 2, 2, 1]
 minor_intervals = [2, 1, 2, 2, 1, 2, 2]
 
+OUTPUT_MID_FILE_NAME = "test.mid"
 
 def get_note_name(note: int) -> str:
     return notes[note % 12]

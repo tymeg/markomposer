@@ -1,6 +1,6 @@
 import os
 import utils
-from mido import MidiFile, MetaMessage
+from mido import MidiFile, MetaMessage, tempo2bpm
 import math
 
 
@@ -11,6 +11,7 @@ class MarkovModel:
         self.filepath = filepath
 
         self.mid = MidiFile(os.path.join(os.path.dirname(__file__), filepath))
+        print(self.mid.ticks_per_beat)
         self.mid.ticks_per_beat = utils.DEFAULT_TICKS_PER_BEAT
 
         print(f"Track's length [sec]: {self.mid.length}")
@@ -40,8 +41,10 @@ class MarkovModel:
         self.interval_counts = {}
 
         # main is currently first, maybe it should be the longest?
-        self.main_tempo, self.main_beats_per_bar, self.main_beat_value = 0, 0, 0
+        # but main_tempo is average tempo
+        self.main_beats_per_bar, self.main_beat_value = 0, 0
         self.main_key = ""
+        self.main_tempo, self.tempos_count = 0, 0
 
         self.__process_midi(self.mid)
 
@@ -56,6 +59,7 @@ class MarkovModel:
             intervals = []
             interval = 0
             currently_playing_notes_starts = {}
+
             print(f"Track {track_idx}: {track.name}")
             for msg in track:
                 # print(msg)
@@ -87,7 +91,6 @@ class MarkovModel:
                                 start,
                                 math.ceil((total_time - start) / self.length_precision)
                                 * self.length_precision
-                                # total_time - start
                             )
                         )
                         interval = 0
@@ -107,6 +110,9 @@ class MarkovModel:
                 self.__count_track_length_occurences(note_lengths, True)
                 self.__count_track_length_occurences(intervals, False)
 
+        if self.tempos_count > 1:
+            self.main_tempo = self.main_tempo // self.tempos_count # average
+
         print(f"\nNotes n-grams: \n{self.note_ngrams}\n")
         print(f"Notes n-grams without octaves: \n{self.note_ngrams_without_octaves}\n")
         print(f"\nNotes n-1-grams: \n{self.note_nminus1grams}\n")
@@ -121,9 +127,11 @@ class MarkovModel:
         # TODO: do I need current tempo, key etc. for anything?
         if msg.type == "set_tempo":
             current_tempo = msg.tempo
-            if self.main_tempo == 0:
-                self.main_tempo = current_tempo
-            # print(f"Tempo: {tempo2bpm(current_tempo)} BPM ({current_tempo} microseconds per quarter note)")
+            self.main_tempo += current_tempo
+            self.tempos_count += 1
+            print(
+                f"Tempo: {tempo2bpm(current_tempo)} BPM ({current_tempo} microseconds per quarter note)"
+            )
         if msg.type == "time_signature":
             current_beats_per_bar = msg.numerator
             if self.main_beats_per_bar == 0:
