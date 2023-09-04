@@ -10,10 +10,13 @@ from markov import MarkovModel
 class MusicGenerator:
     def __init__(self, mm: MarkovModel) -> None:
         self.mm = mm
+        self.note_lengths = []
         self.note_length_ppbs = np.array([])
         self.pause_ppb = 0
 
-    def __choose_next_note(self, prev_notes: tuple[int | str], with_octave: bool) -> int | str:
+    def __choose_next_note(
+        self, prev_notes: tuple[int | str], with_octave: bool
+    ) -> int | str:
         if len(prev_notes) != self.mm.n - 1:
             raise ValueError("With n-gram there has to be n-1 previous notes!")
 
@@ -87,36 +90,41 @@ class MusicGenerator:
     ) -> None:
         counts = self.mm.note_length_counts
 
+        if simple_time:
+            self.note_lengths = utils.note_lengths_simple_time
+        else:
+            self.note_lengths = utils.note_lengths_compound_time
+
         # MODIFIES LIST IN UTILS!
         if beat_value < 8:
-            utils.note_lengths.pop(0)  # don't put 32nd notes in 2/2, 4/4, 3/4 etc.
+            self.note_lengths.pop(0)  # don't put 32nd notes in 2/2, 4/4, 3/4 etc.
 
         # round to used note lengths from utils
-        rounded_counts = {k * length_of_32nd: 0 for k in utils.note_lengths}
+        rounded_counts = {k * length_of_32nd: 0 for k in self.note_lengths}
         nearest_index = 0
         for note_length in sorted(list(counts.keys())):
-            if note_length > length_of_32nd * utils.note_lengths[nearest_index]:
+            if note_length > length_of_32nd * self.note_lengths[nearest_index]:
                 nearest_index += 1
-            if nearest_index == len(utils.note_lengths):
+            if nearest_index == len(self.note_lengths):
                 break  # don't count longer notes
-            rounded_counts[
-                utils.note_lengths[nearest_index] * length_of_32nd
-            ] += counts[note_length]
+            rounded_counts[self.note_lengths[nearest_index] * length_of_32nd] += counts[
+                note_length
+            ]
 
         print(rounded_counts)
         # CONTROVERSIAL
         # as 8th, 16th and 32nd notes are generated in groups, let's not favour them that much
         # TODO: improve
-        if simple_time:
-            if beat_value >= 8:
-                rounded_counts[length_of_32nd] //= 8
-            rounded_counts[length_of_32nd * 2] //= 4
-            rounded_counts[length_of_32nd * 4] //= 2
-        else:
-            if beat_value >= 8:
-                rounded_counts[length_of_32nd] //= 12
-            rounded_counts[length_of_32nd * 2] //= 6
-            rounded_counts[length_of_32nd * 4] //= 3
+        # if simple_time:
+        #     if beat_value >= 8:
+        #         rounded_counts[length_of_32nd] //= 8
+        #     rounded_counts[length_of_32nd * 2] //= 4
+        #     rounded_counts[length_of_32nd * 4] //= 2
+        # else:
+        #     if beat_value >= 8:
+        #         rounded_counts[length_of_32nd] //= 12
+        #     rounded_counts[length_of_32nd * 2] //= 6
+        #     rounded_counts[length_of_32nd * 4] //= 3
 
         all = sum(rounded_counts.values())
         ppbs = list(map(lambda x: x / all, list(rounded_counts.values())))
@@ -135,7 +143,7 @@ class MusicGenerator:
 
     def __choose_next_length_from_ppbs(self, length_of_32nd: int) -> int:
         length_choice = np.random.choice(
-            [i * length_of_32nd for i in utils.note_lengths], p=self.note_length_ppbs
+            [i * length_of_32nd for i in self.note_lengths], p=self.note_length_ppbs
         )
         return length_choice
 
@@ -184,18 +192,25 @@ class MusicGenerator:
     ) -> int:
         # some randomness could be added - to not always take the closest note
         prev_note_octave = utils.get_note_octave(prev_note)
-        possible_octaves = filter(lambda octave: octave <= utils.HIGHEST_USED_OCTAVE, [
-            prev_note_octave,
-            prev_note_octave - 1,
-            prev_note_octave + 1,
-        ])
+        possible_octaves = filter(
+            lambda octave: octave <= utils.HIGHEST_USED_OCTAVE,
+            [
+                prev_note_octave,
+                prev_note_octave - 1,
+                prev_note_octave + 1,
+            ],
+        )
 
         possible_notes = [
             utils.get_note_in_octave(note, octave) for octave in possible_octaves
         ]
         if only_high_notes:
             possible_notes = list(
-                filter(lambda note: utils.get_note_octave(note) >= utils.HIGH_NOTES_OCTAVE_THRESHOLD, possible_notes)
+                filter(
+                    lambda note: utils.get_note_octave(note)
+                    >= utils.HIGH_NOTES_OCTAVE_THRESHOLD,
+                    possible_notes,
+                )
             )
         min_abs = 12
         for note in possible_notes:
@@ -214,7 +229,13 @@ class MusicGenerator:
                 )  # could be also parameterized
                 first_notes = list(prev_notes)
                 if only_high_notes:
-                    if all(map(lambda note: utils.get_note_octave(note) >= utils.HIGH_NOTES_OCTAVE_THRESHOLD, first_notes)):
+                    if all(
+                        map(
+                            lambda note: utils.get_note_octave(note)
+                            >= utils.HIGH_NOTES_OCTAVE_THRESHOLD,
+                            first_notes,
+                        )
+                    ):
                         break
                 else:
                     break
@@ -231,7 +252,7 @@ class MusicGenerator:
         prev_notes: tuple[int | str],
         with_octave: bool,
         only_high_notes: bool,
-        prev_note: int
+        prev_note: int,
     ) -> tuple[int, tuple[int | str]]:
         if first_notes:
             next_note = first_notes.pop(0)
@@ -244,19 +265,24 @@ class MusicGenerator:
                         "Couldn't find next note and finish track. Try again or set smaller n."
                     )  # ugly error for now
                 if with_octave and only_high_notes:
-                    if utils.get_note_octave(next_note) >= utils.HIGH_NOTES_OCTAVE_THRESHOLD:
+                    if (
+                        utils.get_note_octave(next_note)
+                        >= utils.HIGH_NOTES_OCTAVE_THRESHOLD
+                    ):
                         break
                 else:
                     break
             print(f"Chosen {next_note} note after {prev_notes}")
             prev_notes = prev_notes[1:] + (next_note,)
 
-        if not with_octave: # calculate specific note
-            if prev_note == -1: # first note
+        if not with_octave:  # calculate specific note
+            if prev_note == -1:  # first note
                 next_note = self.__specific_first_note(next_note, only_high_notes)
             else:
-                next_note = self.__next_closest_note(prev_note, next_note, only_high_notes)
-        
+                next_note = self.__next_closest_note(
+                    prev_note, next_note, only_high_notes
+                )
+
         return next_note, prev_notes
 
     def __print_track(self, output_file: str) -> None:
@@ -278,8 +304,8 @@ class MusicGenerator:
         prev_notes: tuple[int | str],
         with_octave: bool,
         only_high_notes: bool,
-        last_note: int
-    ) -> tuple[list[tuple[int | str, int, bool]], int]:
+        last_note: int,
+    ) -> tuple[list[tuple[int | str, int, bool]], tuple[int | str], int]:
         strong_beats = bar_length // strong_beat_length
         strong_beat, time_in_bar, time_in_strong_beat = 0, 0, 0
         notes = []  # consecutive notes as tuples: (note pitch, note length, if_pause)
@@ -313,7 +339,11 @@ class MusicGenerator:
                 ):  # ends strong beat part
                     if not_pause:
                         next_note, prev_notes = self.__pick_specific_note(
-                            first_notes, prev_notes, with_octave, only_high_notes, prev_note
+                            first_notes,
+                            prev_notes,
+                            with_octave,
+                            only_high_notes,
+                            prev_note,
                         )
                         prev_note = next_note
                     notes.append((next_note, note_length, not_pause))
@@ -326,11 +356,19 @@ class MusicGenerator:
                     elif not simple_time and note_length // length_of_32nd in [8, 16]:
                         continue  # don't put half and quarter notes in compound time (simplification, TODO: improve)
                     elif note_length // length_of_32nd not in [
-                        1, 2, 3, 4, 6
+                        1,
+                        2,
+                        3,
+                        4,
+                        6,
                     ]:  # put one
                         if not_pause:
                             next_note, prev_notes = self.__pick_specific_note(
-                                first_notes, prev_notes, with_octave, only_high_notes, prev_note
+                                first_notes,
+                                prev_notes,
+                                with_octave,
+                                only_high_notes,
+                                prev_note,
                             )
                             prev_note = next_note
                         notes.append((next_note, note_length, not_pause))
@@ -354,7 +392,11 @@ class MusicGenerator:
                             next_note = -1
                             if not_pause:
                                 next_note, prev_notes = self.__pick_specific_note(
-                                    first_notes, prev_notes, with_octave, only_high_notes, prev_note
+                                    first_notes,
+                                    prev_notes,
+                                    with_octave,
+                                    only_high_notes,
+                                    prev_note,
                                 )
                                 prev_note = next_note
                             notes.append((next_note, note_length, not_pause))
@@ -366,7 +408,7 @@ class MusicGenerator:
                         if time_in_strong_beat == strong_beat_length:
                             strong_beat += 1
                             time_in_strong_beat = 0
-        return notes, prev_note
+        return notes, prev_notes, prev_note
 
     def generate_music_in_time_signature(
         self,
@@ -374,7 +416,7 @@ class MusicGenerator:
         bars: int,
         instrument: int,
         only_high_notes: bool = False,
-        no_pauses: bool = False
+        no_pauses: bool = False,
     ) -> None:
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
@@ -427,7 +469,7 @@ class MusicGenerator:
         last_note = -1
         for bar in range(bars):
             # simplification: there are no notes spanning between bars
-            bar_notes, last_note = self.__fit_bar(
+            bar_notes, prev_notes, last_note = self.__fit_bar(
                 length_of_32nd,
                 simple_time,
                 bar_length,
@@ -436,7 +478,7 @@ class MusicGenerator:
                 prev_notes,
                 with_octave,
                 only_high_notes,
-                last_note
+                last_note,
             )
             for note, note_length, not_pause in bar_notes:
                 if not_pause:
@@ -455,7 +497,7 @@ class MusicGenerator:
         output_file: str,
         bars: int,
         instrument: int,
-        only_high_notes: bool = False
+        only_high_notes: bool = False,
     ) -> None:
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
@@ -532,8 +574,8 @@ class MusicGenerator:
 
 # parse arguments - will be expanded and moved to main file
 n = 2
-m = 6
-filename = "deb_clai.mid"
+m = 2
+filename = "fur_elise.mid"
 
 if n < 2:
     raise ValueError("n must be >= 2!")
@@ -546,7 +588,7 @@ mm = MarkovModel(n, m, filename)
 generator = MusicGenerator(mm)
 
 generator.generate_music_with_length_ngrams(
-    output_file="test1.mid", bars=40, instrument=1, only_high_notes=True
+    output_file="test1.mid", bars=40, instrument=1, only_high_notes=False
 )
 
 generator.generate_music_in_time_signature(
@@ -554,7 +596,7 @@ generator.generate_music_in_time_signature(
     bars=40,
     instrument=1,
     only_high_notes=False,
-    no_pauses=False
+    no_pauses=False,
 )
 
 # outdated - worked very rarely. Maybe will work nice if many input .mid files?

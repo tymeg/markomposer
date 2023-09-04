@@ -12,7 +12,10 @@ class MarkovModel:
 
         self.mid = MidiFile(os.path.join(os.path.dirname(__file__), filepath))
         print(self.mid.ticks_per_beat)
-        self.mid.ticks_per_beat = utils.DEFAULT_TICKS_PER_BEAT
+
+        self.ticks_per_beat_factor = (
+            utils.DEFAULT_TICKS_PER_BEAT / self.mid.ticks_per_beat
+        )
 
         print(f"Track's length [sec]: {self.mid.length}")
         print(f"File type: {self.mid.type}")
@@ -28,7 +31,7 @@ class MarkovModel:
         self.note_nminus1grams_without_octaves = {}  # strings -> how many
 
         # default for beat = quarter note, changed in process_midi if beat value is different
-        self.length_precision = self.mid.ticks_per_beat // 8
+        self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // 8
 
         # NOTE LENGTHS
         self.note_length_ngrams = {}
@@ -74,7 +77,11 @@ class MarkovModel:
                         # round up
                         intervals.append(
                             # better round up or down? I want 0 length intervals
-                            math.floor(interval / self.length_precision)
+                            math.floor(
+                                interval
+                                * self.ticks_per_beat_factor
+                                / self.length_precision
+                            )
                             * self.length_precision
                         )
                         notes.append(msg.note)
@@ -89,8 +96,12 @@ class MarkovModel:
                             (
                                 # better round up or down? I don't want 0 length notes
                                 start,
-                                math.ceil((total_time - start) / self.length_precision)
-                                * self.length_precision
+                                math.ceil(
+                                    (total_time - start)
+                                    * self.ticks_per_beat_factor
+                                    / self.length_precision
+                                )
+                                * self.length_precision,
                             )
                         )
                         interval = 0
@@ -111,7 +122,7 @@ class MarkovModel:
                 self.__count_track_length_occurences(intervals, False)
 
         if self.tempos_count > 1:
-            self.main_tempo = self.main_tempo // self.tempos_count # average
+            self.main_tempo = self.main_tempo // self.tempos_count  # average
 
         print(f"\nNotes n-grams: \n{self.note_ngrams}\n")
         print(f"Notes n-grams without octaves: \n{self.note_ngrams_without_octaves}\n")
@@ -129,9 +140,9 @@ class MarkovModel:
             current_tempo = msg.tempo
             self.main_tempo += current_tempo
             self.tempos_count += 1
-            print(
-                f"Tempo: {tempo2bpm(current_tempo)} BPM ({current_tempo} microseconds per quarter note)"
-            )
+            # print(
+            #     f"Tempo: {tempo2bpm(current_tempo)} BPM ({current_tempo} microseconds per quarter note)"
+            # )
         if msg.type == "time_signature":
             current_beats_per_bar = msg.numerator
             if self.main_beats_per_bar == 0:
@@ -140,7 +151,7 @@ class MarkovModel:
             if self.main_beat_value == 0:
                 self.main_beat_value = current_beat_value
                 # good?
-                self.length_precision = self.mid.ticks_per_beat // (
+                self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // (
                     32 // self.main_beat_value
                 )
             print(f"Time signature: {current_beats_per_bar}/{current_beat_value}")

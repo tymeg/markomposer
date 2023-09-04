@@ -13,7 +13,8 @@ notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 # arbitrarily chosen note lengths to use - multipliers of 32nd note length
 # 32nd, 16th, 16., 8th, 8., 4th, 4., 2nd, 2., whole note
 # . - dotted note (e.g. 8. = 1.5 * 8th)
-note_lengths = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32]
+note_lengths_simple_time = [1, 2, 4, 8, 16, 32]
+note_lengths_compound_time = [1, 2, 3, 4, 6, 12, 24]
 
 # intervals in half notes
 major_intervals = [2, 2, 1, 2, 2, 2, 1]
