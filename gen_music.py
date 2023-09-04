@@ -383,12 +383,12 @@ class MusicGenerator:
                             note_length // length_of_32nd
                         )
 
-                        while (
+                        while ( # smaller group if no space
                             time_in_strong_beat + number_of_notes * note_length
                             > strong_beat_length
                         ):
                             number_of_notes //= 2
-                        for i in range(number_of_notes):
+                        for i in range(number_of_notes): # add group of notes and pauses
                             next_note = -1
                             if not_pause:
                                 next_note, prev_notes = self.__pick_specific_note(
