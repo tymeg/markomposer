@@ -3,7 +3,10 @@ DEFAULT_BEATS_PER_BAR = 4
 DEFAULT_BEAT_VALUE = 4
 DEFAULT_TEMPO = 500000
 
-HIGH_NOTES_THRESHOLD = 48
+HIGH_NOTES_OCTAVE_THRESHOLD = 3
+
+LOWEST_USED_OCTAVE = 0
+HIGHEST_USED_OCTAVE = 6
 
 notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
@@ -16,7 +19,13 @@ note_lengths = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32]
 major_intervals = [2, 2, 1, 2, 2, 2, 1]
 minor_intervals = [2, 1, 2, 2, 1, 2, 2]
 
-OUTPUT_MID_FILE_NAME = "test.mid"
+def get_note_in_octave(note: str, octave: int) -> int:
+    return (octave + 1) * 12 + get_note_number(note)
+
+
+def get_note_number(note: str) -> int:
+    return notes.index(note)
+
 
 def get_note_name(note: int) -> str:
     return notes[note % 12]
