@@ -20,6 +20,7 @@ note_lengths_compound_time = [1, 2, 3, 4, 6, 12, 24]
 major_intervals = [2, 2, 1, 2, 2, 2, 1]
 minor_intervals = [2, 1, 2, 2, 1, 2, 2]
 
+
 def get_note_in_octave(note: str, octave: int) -> int:
     return (octave + 1) * 12 + get_note_number(note)
 
@@ -61,13 +62,13 @@ def flat_to_sharp(note: str) -> str:
 def get_key_notes(key: str) -> str:
     key_notes = []
 
-    offset = 0
     minor = key[-1] == "m"
     tonic_note = key[:-1] if minor else key
     tonic_note = flat_to_sharp(tonic_note)
 
     key_notes.append(tonic_note)
     idx = notes.index(tonic_note)
+    offset = 0
     for i in range(6):
         if minor:
             offset += minor_intervals[i]

@@ -55,8 +55,9 @@ class MusicGenerator:
             )
 
         # 0 to 2 whole notes
-        lengths_range = 2 * utils.DEFAULT_TICKS_PER_BEAT * self.mm.main_beat_value + 1
-        valid_lengths = list(range(0, lengths_range, self.mm.length_precision))
+        valid_lengths = list(
+            range(0, self.mm.lengths_range + 1, self.mm.length_precision)
+        )
         ppbs = []
 
         if if_note_length:
@@ -127,7 +128,7 @@ class MusicGenerator:
         #     rounded_counts[length_of_32nd * 4] //= 3
 
         all = sum(rounded_counts.values())
-        ppbs = list(map(lambda x: x / all, list(rounded_counts.values())))
+        ppbs = list(map(lambda cnts: cnts / all, list(rounded_counts.values())))
 
         # normalization
         self.note_length_ppbs = np.array(ppbs)
@@ -313,6 +314,7 @@ class MusicGenerator:
 
         note_or_pause_ppbs = [1 - self.pause_ppb, self.pause_ppb]
 
+        # long, could be rewritten equivalently shorter, but this way shows clearly all the options
         prev_note = last_note
         while strong_beat < strong_beats:
             next_note = -1
@@ -351,11 +353,12 @@ class MusicGenerator:
                     strong_beat += 1
                     continue
                 else:  # shorter than till end of strong beat part
-                    if simple_time and note_length // length_of_32nd in [3, 6, 12, 24]:
-                        continue  # don't put dotted notes in simple time (simplification, TODO: improve)
-                    elif not simple_time and note_length // length_of_32nd in [8, 16]:
-                        continue  # don't put half and quarter notes in compound time (simplification, TODO: improve)
-                    elif note_length // length_of_32nd not in [
+                    # look in calculate_note_lengths_ppbs - forbids these lengths
+                    # if simple_time and note_length // length_of_32nd in [3, 6, 12, 24]:
+                    #     continue  # don't put dotted notes in simple time (simplification, TODO: improve)
+                    # elif not simple_time and note_length // length_of_32nd in [8, 16]:
+                    #     continue  # don't put half and quarter notes in compound time (simplification, TODO: improve)
+                    if note_length // length_of_32nd not in [
                         1,
                         2,
                         3,
@@ -383,12 +386,14 @@ class MusicGenerator:
                             note_length // length_of_32nd
                         )
 
-                        while ( # smaller group if no space
+                        while (  # smaller group if no space
                             time_in_strong_beat + number_of_notes * note_length
                             > strong_beat_length
                         ):
                             number_of_notes //= 2
-                        for i in range(number_of_notes): # add group of notes and pauses
+                        for i in range(
+                            number_of_notes
+                        ):  # add group of notes and pauses
                             next_note = -1
                             if not_pause:
                                 next_note, prev_notes = self.__pick_specific_note(
@@ -460,6 +465,7 @@ class MusicGenerator:
         if not no_pauses:
             self.__calculate_pause_ppb()
 
+        # for now use ngrams without octaves iff only_high_notes
         with_octave = False if only_high_notes else True
         prev_notes, first_notes = self.__first_nminus1_notes(
             with_octave, only_high_notes
@@ -508,6 +514,7 @@ class MusicGenerator:
         bar_length = utils.DEFAULT_BEATS_PER_BAR * new_mid.ticks_per_beat
         time_in_bar = 0
 
+        # for now use ngrams without octaves iff only_high_notes
         with_octave = False if only_high_notes else True
         prev_notes, first_notes = self.__first_nminus1_notes(
             with_octave, only_high_notes
@@ -573,7 +580,7 @@ class MusicGenerator:
 
 
 # parse arguments - will be expanded and moved to main file
-n = 2
+n = 3
 m = 2
 filename = "fur_elise.mid"
 

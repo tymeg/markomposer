@@ -13,6 +13,7 @@ class MarkovModel:
         self.mid = MidiFile(os.path.join(os.path.dirname(__file__), filepath))
         print(self.mid.ticks_per_beat)
 
+        # to count lengths properly
         self.ticks_per_beat_factor = (
             utils.DEFAULT_TICKS_PER_BEAT / self.mid.ticks_per_beat
         )
@@ -30,8 +31,11 @@ class MarkovModel:
         self.note_nminus1grams = {}  # numbers -> how many
         self.note_nminus1grams_without_octaves = {}  # strings -> how many
 
-        # default for beat = quarter note, changed in process_midi if beat value is different
+        # default for beat=quarter note, changed in process_midi if beat value is different
         self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // 8
+
+        # 0 to 2 whole notes
+        self.lengths_range = 2 * utils.DEFAULT_TICKS_PER_BEAT * utils.DEFAULT_BEAT_VALUE
 
         # NOTE LENGTHS
         self.note_length_ngrams = {}
@@ -58,7 +62,7 @@ class MarkovModel:
 
             # list of tuples (start of note, note length) to sort by start
             note_lengths = []
-            # times in ticks between starts of consecutive notes
+            # times in ticks between end of previous (last) note and start of next
             intervals = []
             interval = 0
             currently_playing_notes_starts = {}
@@ -74,9 +78,8 @@ class MarkovModel:
                 else:
                     if msg.type == "note_on" and msg.velocity > 0:
                         currently_playing_notes_starts[msg.note] = total_time
-                        # round up
-                        intervals.append(
-                            # better round up or down? I want 0 length intervals
+                        # round down - I want 0 length intervals
+                        rounded_interval = (
                             math.floor(
                                 interval
                                 * self.ticks_per_beat_factor
@@ -84,6 +87,10 @@ class MarkovModel:
                             )
                             * self.length_precision
                         )
+                        if rounded_interval > self.lengths_range:
+                            rounded_interval = self.lengths_range
+
+                        intervals.append(rounded_interval)
                         notes.append(msg.note)
                         # print(utils.get_note_name_with_octave(msg.note))
                         # print(total_time)
@@ -91,19 +98,19 @@ class MarkovModel:
                         msg.type == "note_on" and msg.velocity == 0
                     ) or msg.type == "note_off":
                         start = currently_playing_notes_starts[msg.note]
-                        # round up
-                        note_lengths.append(
-                            (
-                                # better round up or down? I don't want 0 length notes
-                                start,
-                                math.ceil(
-                                    (total_time - start)
-                                    * self.ticks_per_beat_factor
-                                    / self.length_precision
-                                )
-                                * self.length_precision,
+                        # round up - I don't want 0 length notes
+                        rounded_note_length = (
+                            math.ceil(
+                                (total_time - start)
+                                * self.ticks_per_beat_factor
+                                / self.length_precision
                             )
+                            * self.length_precision
                         )
+                        if rounded_note_length > self.lengths_range:
+                            rounded_note_length = self.lengths_range
+
+                        note_lengths.append((start, rounded_note_length))
                         interval = 0
 
             print(f"Track {track_idx} notes: \n{notes}")
@@ -153,6 +160,9 @@ class MarkovModel:
                 # good?
                 self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // (
                     32 // self.main_beat_value
+                )
+                self.lengths_range = (
+                    2 * utils.DEFAULT_TICKS_PER_BEAT * self.main_beat_value
                 )
             print(f"Time signature: {current_beats_per_bar}/{current_beat_value}")
         if msg.type == "key_signature":
