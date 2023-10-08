@@ -172,10 +172,11 @@ class MusicGenerator:
         return tempo
 
     def __set_key(self, track) -> str:
-        # TODO: add custom key
-        if self.mm.main_key != "":
-            key = self.mm.main_key
-            track.append(MetaMessage("key_signature", key=key))
+        # TODO: set key, add custom key
+        # if self.mm.main_key != "":
+        #     key = self.mm.main_key
+        #     track.append(MetaMessage("key_signature", key=key))
+        pass
 
     def __specific_first_note(self, note: str, only_high_notes: bool) -> int:
         low_end = (
@@ -580,9 +581,12 @@ class MusicGenerator:
 
 
 # parse arguments - will be expanded and moved to main file
-n = 3
-m = 2
-filename = "fur_elise.mid"
+n = 4
+m = 4
+# pathname = "ragtime.mid"
+
+# or dirname - e.g. -d or --dir flag
+pathname = "znane"
 
 if n < 2:
     raise ValueError("n must be >= 2!")
@@ -590,7 +594,7 @@ if m < 2:
     raise ValueError("m must be >= 2!")
 
 # if user doesn't set m, then make m = n
-mm = MarkovModel(n, m, filename)
+mm = MarkovModel(n, m, True, pathname)
 
 generator = MusicGenerator(mm)
 
@@ -603,7 +607,7 @@ generator.generate_music_in_time_signature(
     bars=40,
     instrument=1,
     only_high_notes=False,
-    no_pauses=False,
+    no_pauses=False
 )
 
 # outdated - worked very rarely. Maybe will work nice if many input .mid files?

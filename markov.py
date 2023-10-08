@@ -5,23 +5,9 @@ import math
 
 
 class MarkovModel:
-    def __init__(self, n: int, m: int, filepath: str) -> None:
+    def __init__(self, n: int, m: int, if_dir: bool, pathname: str) -> None:
         self.n = n  # note n-grams
         self.m = m  # length m-grams
-        self.filepath = filepath
-
-        self.mid = MidiFile(os.path.join(os.path.dirname(__file__), filepath))
-        print(self.mid.ticks_per_beat)
-
-        # to count lengths properly
-        self.ticks_per_beat_factor = (
-            utils.DEFAULT_TICKS_PER_BEAT / self.mid.ticks_per_beat
-        )
-
-        print(f"Track's length [sec]: {self.mid.length}")
-        print(f"File type: {self.mid.type}")
-        if self.mid.type == 2:  # maybe we should handle them in the future
-            raise ValueError(".mid file should be of type 0 or 1!")
 
         # NOTES
         # n-grams
@@ -47,15 +33,54 @@ class MarkovModel:
         self.interval_nminus1grams = {}
         self.interval_counts = {}
 
-        # main is currently first, maybe it should be the longest?
+        # main is currently first, maybe it should be the longest/most often among mid files?
         # but main_tempo is average tempo
-        self.main_beats_per_bar, self.main_beat_value = 0, 0
         self.main_key = ""
+        # if stays 0, will be set default later in music generation
+        self.main_beats_per_bar, self.main_beat_value = 0, 0
         self.main_tempo, self.tempos_count = 0, 0
 
-        self.__process_midi(self.mid)
+        self.path = os.path.join(os.getcwd(), pathname) # CWD
+        # self.path = os.path.join(os.path.dirname(__file__), pathname) # directory of markov.py
+        self.mids = []
 
-    def __process_midi(self, mid: MidiFile) -> None:
+        self.__collect_mid_files(if_dir)
+        
+        for mid in self.mids:
+            self.__process_mid_file(mid)
+
+        if self.tempos_count > 1:
+            self.main_tempo = self.main_tempo // self.tempos_count  # average
+
+    def __collect_mid_files(self, if_dir: bool) -> None:
+        if if_dir:
+            for filename in os.listdir(self.path):
+                file = os.path.join(self.path, filename)
+                if os.path.isfile(file) and os.path.splitext(file)[-1].lower() == ".mid":
+                    mid_file = MidiFile(file)
+                    if not mid_file.type == 2:
+                        self.mids.append(mid_file)
+                    else:
+                        print(f"Skipped {mid_file.filename} - type 2!")
+            if not self.mids:
+                raise ValueError("No .mid files of type 0 or 1 in given directory!")
+        else: # assumes file is of .mid extension
+            mid_file = MidiFile(self.path)
+            if mid_file.type == 2:
+                raise ValueError(".mid file should be of type 0 or 1!")
+            self.mids.append(mid_file)
+
+    def __process_mid_file(self, mid: MidiFile) -> None:
+        print(f"Mid's name: {mid.filename}")
+        print(f"Mid's length [sec]: {mid.length}")
+        print(f"File type: {mid.type}")
+        
+        print(f"Ticks per beat: {mid.ticks_per_beat}")
+        # to count lengths properly
+        ticks_per_beat_factor = (
+            utils.DEFAULT_TICKS_PER_BEAT / mid.ticks_per_beat
+        )
+        
         for track_idx, track in enumerate(mid.tracks):
             total_time = 0
             notes = []
@@ -82,7 +107,7 @@ class MarkovModel:
                         rounded_interval = (
                             math.floor(
                                 interval
-                                * self.ticks_per_beat_factor
+                                * ticks_per_beat_factor
                                 / self.length_precision
                             )
                             * self.length_precision
@@ -102,7 +127,7 @@ class MarkovModel:
                         rounded_note_length = (
                             math.ceil(
                                 (total_time - start)
-                                * self.ticks_per_beat_factor
+                                * ticks_per_beat_factor
                                 / self.length_precision
                             )
                             * self.length_precision
@@ -113,11 +138,11 @@ class MarkovModel:
                         note_lengths.append((start, rounded_note_length))
                         interval = 0
 
-            print(f"Track {track_idx} notes: \n{notes}")
+            # print(f"Track {track_idx} notes: \n{notes}")
             note_lengths.sort()
             note_lengths = list(map(lambda tpl: tpl[1], note_lengths))
-            print(f"Track {track_idx} note lengths: \n{note_lengths}")
-            print(f"Track {track_idx} intervals: \n{intervals}")
+            # print(f"Track {track_idx} note lengths: \n{note_lengths}")
+            # print(f"Track {track_idx} intervals: \n{intervals}")
 
             if notes:
                 self.__count_track_note_ngrams(notes)
@@ -128,18 +153,15 @@ class MarkovModel:
                 self.__count_track_length_occurences(note_lengths, True)
                 self.__count_track_length_occurences(intervals, False)
 
-        if self.tempos_count > 1:
-            self.main_tempo = self.main_tempo // self.tempos_count  # average
+        # print(f"\nNotes n-grams: \n{self.note_ngrams}\n")
+        # print(f"Notes n-grams without octaves: \n{self.note_ngrams_without_octaves}\n")
+        # print(f"\nNotes n-1-grams: \n{self.note_nminus1grams}\n")
+        # print(
+        #     f"Notes n-1-grams without octaves: \n{self.note_nminus1grams_without_octaves}\n"
+        # )
 
-        print(f"\nNotes n-grams: \n{self.note_ngrams}\n")
-        print(f"Notes n-grams without octaves: \n{self.note_ngrams_without_octaves}\n")
-        print(f"\nNotes n-1-grams: \n{self.note_nminus1grams}\n")
-        print(
-            f"Notes n-1-grams without octaves: \n{self.note_nminus1grams_without_octaves}\n"
-        )
-
-        print(f"Note length counts: \n{self.note_length_counts}")
-        print(f"Interval counts: \n{self.interval_counts}")
+        # print(f"Note length counts: \n{self.note_length_counts}")
+        # print(f"Interval counts: \n{self.interval_counts}")
 
     def __read_meta_message(self, msg: MetaMessage) -> None:
         # TODO: do I need current tempo, key etc. for anything?
