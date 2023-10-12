@@ -14,6 +14,25 @@ class MusicGenerator:
         self.note_length_ppbs = np.array([])
         self.pause_ppb = 0
 
+    def __add_ppb(
+        self,
+        ppbs: list[float],
+        ngrams: dict[tuple],
+        nminus1grams: dict[tuple],
+        prev: tuple,
+        value: int | tuple[int],
+    ) -> None:
+        ngrams_count = ngrams.get(prev + (value,))
+        if ngrams_count is not None:
+            ppbs.append(ngrams_count / nminus1grams[prev])
+        else:
+            ppbs.append(0)
+
+    def __normalize_ppbs(self, ppbs) -> list[float]:
+        ppbs = np.array(ppbs)
+        ppbs /= ppbs.sum()
+        return ppbs
+
     def __choose_next_note(
         self, prev_notes: tuple[int | str], with_octave: bool
     ) -> int | str:
@@ -31,25 +50,59 @@ class MusicGenerator:
             nminus1grams = self.mm.note_nminus1grams_without_octaves
 
         for note in notes:
-            ngrams_count = ngrams.get(prev_notes + (note,))
-            if ngrams_count is not None:
-                ppbs.append(ngrams_count / nminus1grams[prev_notes])
-            else:
-                ppbs.append(0)
+            self.__add_ppb(ppbs, ngrams, nminus1grams, prev_notes, note)
         if sum(ppbs) == 0:
             return None  # no such n-grams
 
-        # normalization
-        ppbs = np.array(ppbs)
-        ppbs /= ppbs.sum()
+        ppbs = self.__normalize_ppbs(ppbs)
 
         note_choice = np.random.choice(notes, p=ppbs)
         return note_choice
 
+    def __choose_next_tuple(
+        self, prev_tuples: tuple[tuple[int]], with_octave: bool
+    ) -> tuple[int]:
+        if len(prev_tuples) != self.mm.n - 1:
+            raise ValueError("With n-gram there has to be n-1 previous notes!")
+
+        valid_lengths_range = range(
+            0, self.mm.lengths_range + 1, self.mm.length_precision
+        )
+        ppbs = []
+        # DOUBLE CHECK!
+        if with_octave:
+            tuples = [
+                (i, j, k)
+                for i in range(128)
+                for j in valid_lengths_range
+                for k in valid_lengths_range
+            ]  # notes as numbers
+            ngrams = self.mm.tuple_ngrams
+            nminus1grams = self.mm.tuple_nminus1grams
+        else:
+            tuples = [
+                (i, j, k)
+                for i in utils.notes
+                for j in valid_lengths_range
+                for k in valid_lengths_range
+            ]  # notes as strings
+            ngrams = self.mm.tuple_ngrams_without_octaves
+            nminus1grams = self.mm.tuple_nminus1grams_without_octaves
+
+        for tuple in tuples:
+            self.__add_ppb(ppbs, ngrams, nminus1grams, prev_tuples, tuple)
+        if sum(ppbs) == 0:
+            return None  # no such n-grams
+
+        ppbs = self.__normalize_ppbs(ppbs)
+
+        tuple_index_choice = np.random.choice(len(tuples), p=ppbs)
+        return tuples[tuple_index_choice]
+
     def __choose_next_length_from_ngrams(
-        self, prev: tuple[int], if_note_length: bool
+        self, prev_lengths: tuple[int], if_note_length: bool
     ) -> int:
-        if len(prev) != self.mm.m - 1:
+        if len(prev_lengths) != self.mm.m - 1:
             raise ValueError(
                 f"With m-gram there has to be n-1 previous {'note lengths' if if_note_length else 'intervals'}!"
             )
@@ -68,17 +121,11 @@ class MusicGenerator:
             nminus1grams = self.mm.interval_nminus1grams
 
         for length in valid_lengths:
-            ngrams_count = ngrams.get(prev + (length,))
-            if ngrams_count is not None:
-                ppbs.append(ngrams_count / nminus1grams[prev])
-            else:
-                ppbs.append(0)
+            self.__add_ppb(ppbs, ngrams, nminus1grams, prev_lengths, length)
         if sum(ppbs) == 0:
             return None  # no such m-grams
 
-        # normalization
-        ppbs = np.array(ppbs)
-        ppbs /= ppbs.sum()
+        ppbs = self.__normalize_ppbs(ppbs)
 
         length_choice = np.random.choice([i for i in valid_lengths], p=ppbs)
         return length_choice
@@ -130,9 +177,7 @@ class MusicGenerator:
         all = sum(rounded_counts.values())
         ppbs = list(map(lambda cnts: cnts / all, list(rounded_counts.values())))
 
-        # normalization
-        self.note_length_ppbs = np.array(ppbs)
-        self.note_length_ppbs /= self.note_length_ppbs.sum()
+        self.note_length_ppbs = self.__normalize_ppbs(ppbs)
 
         print(self.note_length_ppbs)
 
@@ -248,6 +293,34 @@ class MusicGenerator:
             first_notes = list(prev_notes)
         return prev_notes, first_notes
 
+    # very similar to first_nminus1_notes - generalize?
+    def __first_nminus1_tuples(
+        self, with_octave: bool, only_high_notes: bool
+    ) -> tuple[tuple[tuple[int | str]], list[tuple[int | str]]]:
+        if with_octave:
+            while True:
+                prev_tuples = random.choice(
+                    list(mm.tuple_nminus1grams.keys())
+                )  # could be also parameterized
+                first_tuples = list(prev_tuples)
+                if only_high_notes:
+                    if all(
+                        map(
+                            lambda tuple: utils.get_note_octave(tuple[0])
+                            >= utils.HIGH_NOTES_OCTAVE_THRESHOLD,
+                            first_tuples,
+                        )
+                    ):
+                        break
+                else:
+                    break
+        else:
+            prev_tuples = random.choice(
+                list(mm.tuple_nminus1grams_without_octaves.keys())
+            )  # could be also parameterized
+            first_tuples = list(prev_tuples)
+        return prev_tuples, first_tuples
+
     def __pick_specific_note(
         self,
         first_notes: list[int | str],
@@ -263,9 +336,10 @@ class MusicGenerator:
             while True:
                 next_note = self.__choose_next_note(prev_notes, with_octave)
                 if next_note is None:
-                    raise RuntimeError(
-                        "Couldn't find next note and finish track. Try again or set smaller n."
-                    )  # ugly error for now
+                    # raise RuntimeError(
+                    #     "Couldn't find next note and finish track. Try again or set smaller n."
+                    # )  # ugly error for now
+                    return None
                 if with_octave and only_high_notes:
                     if (
                         utils.get_note_octave(next_note)
@@ -286,6 +360,53 @@ class MusicGenerator:
                 )
 
         return next_note, prev_notes
+
+    def __pick_tuple(
+        self,
+        first_tuples: list[tuple[int]],
+        prev_tuples: tuple[tuple[int]],
+        with_octave: bool,
+        only_high_notes: bool,
+        prev_note: int,
+        total_time: int,
+    ) -> tuple[tuple[int], tuple[tuple[int]], int]:
+        if first_tuples:
+            next_tuple = first_tuples.pop(0)
+            print(f"Chosen {next_tuple}")
+        else:
+            while True:
+                next_tuple = self.__choose_next_tuple(prev_tuples, with_octave)
+                if next_tuple is None:
+                    # raise RuntimeError(
+                    #     "Couldn't find next note and finish track. Try again or set smaller n."
+                    # )  # ugly error for now
+                    return None
+                if with_octave and only_high_notes:
+                    if (
+                        utils.get_note_octave(next_tuple[0])
+                        >= utils.HIGH_NOTES_OCTAVE_THRESHOLD
+                    ):
+                        break
+                else:
+                    break
+            print(f"Chosen {next_tuple} after {prev_tuples}")
+            prev_tuples = prev_tuples[1:] + (next_tuple,)
+
+        if not with_octave:  # calculate specific note
+            if prev_note == -1:  # first note
+                next_tuple = (
+                    self.__specific_first_note(next_tuple[0], only_high_notes),
+                    next_tuple[1],
+                    next_tuple[2],
+                )
+            else:
+                next_tuple = (
+                    self.__next_closest_note(prev_note, next_tuple[0], only_high_notes),
+                    next_tuple[1],
+                    next_tuple[2],
+                )
+
+        return next_tuple, prev_tuples, total_time + next_tuple[2]
 
     def __print_track(self, output_file: str) -> None:
         print("Generated track:")
@@ -327,9 +448,12 @@ class MusicGenerator:
             # ends bar
             if time_in_bar + note_length == bar_length:
                 if not_pause:
-                    next_note, prev_notes = self.__pick_specific_note(
+                    ret = self.__pick_specific_note(
                         first_notes, prev_notes, with_octave, only_high_notes, prev_note
                     )
+                    if ret is None:
+                        return None
+                    next_note, prev_notes = ret
                     prev_note = next_note
                 notes.append((next_note, note_length, not_pause))
                 break
@@ -341,13 +465,17 @@ class MusicGenerator:
                     time_in_strong_beat + note_length == strong_beat_length
                 ):  # ends strong beat part
                     if not_pause:
-                        next_note, prev_notes = self.__pick_specific_note(
+                        ret = self.__pick_specific_note(
                             first_notes,
                             prev_notes,
                             with_octave,
                             only_high_notes,
                             prev_note,
                         )
+                        if ret is None:
+                            return None
+                        next_note, prev_notes = ret
+
                         prev_note = next_note
                     notes.append((next_note, note_length, not_pause))
                     time_in_strong_beat = 0
@@ -367,13 +495,17 @@ class MusicGenerator:
                         6,
                     ]:  # put one
                         if not_pause:
-                            next_note, prev_notes = self.__pick_specific_note(
+                            ret = self.__pick_specific_note(
                                 first_notes,
                                 prev_notes,
                                 with_octave,
                                 only_high_notes,
                                 prev_note,
                             )
+                            if ret is None:
+                                return None
+                            next_note, prev_notes = ret
+
                             prev_note = next_note
                         notes.append((next_note, note_length, not_pause))
                         time_in_strong_beat += note_length
@@ -397,13 +529,17 @@ class MusicGenerator:
                         ):  # add group of notes and pauses
                             next_note = -1
                             if not_pause:
-                                next_note, prev_notes = self.__pick_specific_note(
+                                ret = self.__pick_specific_note(
                                     first_notes,
                                     prev_notes,
                                     with_octave,
                                     only_high_notes,
                                     prev_note,
                                 )
+                                if ret is None:
+                                    return None
+                                next_note, prev_notes = ret
+
                                 prev_note = next_note
                             notes.append((next_note, note_length, not_pause))
                             not_pause = np.random.choice(
@@ -476,7 +612,7 @@ class MusicGenerator:
         last_note = -1
         for bar in range(bars):
             # simplification: there are no notes spanning between bars
-            bar_notes, prev_notes, last_note = self.__fit_bar(
+            ret = self.__fit_bar(
                 length_of_32nd,
                 simple_time,
                 bar_length,
@@ -487,6 +623,12 @@ class MusicGenerator:
                 only_high_notes,
                 last_note,
             )
+            if ret is None:
+                print("Couldn't find next note - ending track!")
+                break
+
+            bar_notes, prev_notes, last_note = ret
+
             for note, note_length, not_pause in bar_notes:
                 if not_pause:
                     track.append(Message("note_on", note=note, time=int(interval)))
@@ -535,9 +677,14 @@ class MusicGenerator:
         bar = 0
         prev_note = -1
         while bar < bars:
-            next_note, prev_notes = self.__pick_specific_note(
+            ret = self.__pick_specific_note(
                 first_notes, prev_notes, with_octave, only_high_notes, prev_note
             )
+            if ret is None:
+                print("Couldn't find next note - ending track!")
+                break
+            next_note, prev_notes = ret
+
             track.append(Message("note_on", note=next_note, time=int(interval)))
             prev_note = next_note
 
@@ -549,9 +696,11 @@ class MusicGenerator:
                     prev_note_lengths, True
                 )
                 if note_length is None:
-                    raise RuntimeError(
-                        "Couldn't find next note length and finish track. Try again or set smaller m."
-                    )  # ugly error for now
+                    # raise RuntimeError(
+                    #     "Couldn't find next note length and finish track. Try again or set smaller m."
+                    # )  # ugly error for now
+                    print("Couldn't find next note length - ending track!")
+                    break
                 print(f"Chosen {note_length} note length after {prev_note_lengths}")
                 prev_note_lengths = prev_note_lengths[1:] + (note_length,)
 
@@ -566,9 +715,11 @@ class MusicGenerator:
             else:
                 interval = self.__choose_next_length_from_ngrams(prev_intervals, False)
                 if interval is None:
-                    raise RuntimeError(
-                        "Couldn't find next interval and finish track. Try again or set smaller m."
-                    )  # ugly error for now
+                    # raise RuntimeError(
+                    #     "Couldn't find next interval and finish track. Try again or set smaller m."
+                    # )  # ugly error for now
+                    print("Couldn't find next interval - ending track!")
+                    break
                 print(f"Chosen {interval} interval after {prev_intervals}")
                 prev_intervals = prev_intervals[1:] + (interval,)
 
@@ -579,9 +730,72 @@ class MusicGenerator:
 
         self.__print_track(output_file)
 
+    def generate_music_with_tuple_ngrams(
+        self,
+        output_file: str,
+        bars: int,
+        instrument: int,
+        only_high_notes: bool = False,
+    ) -> None:
+        new_mid = MidiFile(
+            type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
+        )  # one track
+        track, tempo, key = self.__start_track(new_mid, instrument)
+
+        # for generated music's length purpose
+        bar_length = utils.DEFAULT_BEATS_PER_BAR * new_mid.ticks_per_beat
+
+        # for now use ngrams without octaves iff only_high_notes
+        with_octave = False if only_high_notes else True
+        prev_tuples, first_tuples = self.__first_nminus1_tuples(
+            with_octave, only_high_notes
+        )
+
+        messages = []  # list of tuples (absolute start time, note, if_note_on)
+        # ADDING MESSAGES LOOP
+        total_time = 0
+        prev_note = -1
+        while True:
+            ret = self.__pick_tuple(
+                first_tuples,
+                prev_tuples,
+                with_octave,
+                only_high_notes,
+                prev_note,
+                total_time,
+            )
+            if ret is None:
+                print("Couldn't find next note - ending track!")
+                break
+            next_tuple, prev_tuples, start_of_next = ret
+
+            prev_note = next_tuple[0]
+            messages.append((total_time, next_tuple[0], True))
+            messages.append((total_time + next_tuple[1], next_tuple[0], False))
+
+            if total_time // bar_length >= bars:
+                break
+
+            total_time = start_of_next
+
+        # sort messages by start time, append them to track
+        messages.sort()
+        prev_abs_time = 0
+        for message in messages:
+            delta_time = message[0] - prev_abs_time
+            if message[2]:
+                track.append(Message("note_on", note=message[1], time=delta_time))
+            else:
+                track.append(Message("note_off", note=message[1], time=delta_time))
+            prev_abs_time = message[0]
+
+        new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
+
+        self.__print_track(output_file)
+
 
 # parse arguments - will be expanded and moved to main file
-n = 4
+n = 3
 m = 4
 # pathname = "ragtime.mid"
 
@@ -599,15 +813,22 @@ mm = MarkovModel(n, m, True, pathname)
 generator = MusicGenerator(mm)
 
 generator.generate_music_with_length_ngrams(
-    output_file="test1.mid", bars=40, instrument=1, only_high_notes=False
+    output_file="test1.mid", bars=20, instrument=1, only_high_notes=False
 )
 
 generator.generate_music_in_time_signature(
     output_file="test2.mid",
-    bars=40,
+    bars=20,
     instrument=1,
     only_high_notes=False,
-    no_pauses=False
+    no_pauses=False,
+)
+
+generator.generate_music_with_tuple_ngrams(
+    output_file="test3.mid",
+    bars=40,
+    instrument=1,
+    only_high_notes=True,
 )
 
 # outdated - worked very rarely. Maybe will work nice if many input .mid files?
