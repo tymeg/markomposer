@@ -83,5 +83,6 @@ celerybeat-schedule
 venv/
 ENV/
 
-# .mid files
+# .mid and mp3 files
 *.mid
+*.mp3
