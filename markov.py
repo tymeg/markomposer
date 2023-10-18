@@ -5,9 +5,8 @@ import math
 
 
 class MarkovModel:
-    def __init__(self, n: int, m: int, if_dir: bool, pathname: str) -> None:
-        self.n = n  # note n-grams
-        self.m = m  # length m-grams
+    def __init__(self, n: int, if_dir: bool, pathname: str) -> None:
+        self.n = n  # n-grams
 
         # NOTES
         # n-grams
@@ -22,14 +21,10 @@ class MarkovModel:
 
         self.lengths_range = utils.DEFAULT_LENGTHS_RANGE
 
-        # NOTE LENGTHS
-        self.note_length_ngrams = {}
-        self.note_length_nminus1grams = {}
+        # NOTE LENGTHS AND INTERVALS
+        self.length_ngrams = {}
+        self.length_nminus1grams = {}
         self.note_length_counts = {}
-
-        # INTERVALS
-        self.interval_ngrams = {}
-        self.interval_nminus1grams = {}
         self.interval_counts = {}
 
         # TUPLES (NOTE, NOTE LENGTH, TIME UNTIL NEXT NOTE START) - MELODY WITH HARMONY
@@ -154,40 +149,36 @@ class MarkovModel:
                     )
                     time_between_note_starts.append(rounded_time)
 
-                melody_tuples = self.__extract_melody(
+                melody_notes, melody_note_lengths, melody_intervals = self.__extract_melody(
                     note_lengths, ticks_per_beat_factor
                 )
 
-                # round up - I don't want 0 length notes
                 rounded_note_lengths = list(
                     map(
-                        lambda tpl: self.__round_time(
-                            tpl[1], ticks_per_beat_factor, True
-                        ),
+                        lambda tpl: self.__round_time(tpl[1], ticks_per_beat_factor, True),
                         note_lengths,
                     )
                 )
-                time_between_note_starts.append(rounded_note_lengths[len(rounded_note_lengths) - 1])
-
-                # round down - I want 0 length intervals
                 rounded_intervals = list(
                     map(
-                        lambda i: self.__round_time(i, ticks_per_beat_factor, False),
+                        lambda interval: self.__round_time(interval, ticks_per_beat_factor, False),
                         intervals,
                     )
                 )
 
-                # print(f"Track {track_idx} note lengths: \n{note_lengths}")
-                # print(f"Track {track_idx} intervals: \n{intervals}")
-
+                melody_tuples = list(
+                    zip(melody_notes, melody_note_lengths, melody_intervals)
+                )
                 all_tuples = list(
                     zip(notes, rounded_note_lengths, time_between_note_starts)
+                )
+                length_pairs = list(
+                    zip(melody_note_lengths, melody_intervals)
                 )
 
                 self.__count_track_note_ngrams(notes)
 
-                self.__count_track_length_ngrams(rounded_note_lengths, True)
-                self.__count_track_length_ngrams(rounded_intervals, False)
+                self.__count_track_length_ngrams(length_pairs)
 
                 self.__count_track_tuple_ngrams(melody_tuples, True)
                 self.__count_track_tuple_ngrams(all_tuples, False)
@@ -237,7 +228,7 @@ class MarkovModel:
 
     def __extract_melody(
         self, note_lengths: list[tuple[int]], ticks_per_beat_factor: int
-    ) -> list[tuple[int]]:
+    ) -> tuple[list[int]]:
         # assumes melody is the sequence of single notes with highest pitch of all playing
 
         end_time = (
@@ -269,7 +260,7 @@ class MarkovModel:
                     note, start, note_length = boxes[box_idx][0]
                     if note_lengths_dict.get((start, note_length, note)):
                         # ?
-                        tolerance = self.length_precision // 6
+                        tolerance = self.length_precision // 3
                         if (
                             start + note_length - tolerance > hstart
                             or hstart + hnote_length - tolerance > start
@@ -297,7 +288,7 @@ class MarkovModel:
                 melody_note_lengths,
             )
         )
-        return list(zip(melody_notes, melody_note_lengths, melody_intervals))
+        return melody_notes, melody_note_lengths, melody_intervals
 
     def __count_ngram(self, ngrams: dict[tuple], counted_ngram: tuple) -> None:
         if ngrams.get(counted_ngram) is not None:
@@ -383,28 +374,21 @@ class MarkovModel:
                 self.__count_ngram(ngrams_without_octaves, ngram_without_octaves)
 
     def __count_track_length_ngrams(
-        self, lengths: list[int], if_note_lengths: bool
+        self, length_pairs: list[int]
     ) -> None:
-        if if_note_lengths:
-            ngrams = self.note_length_ngrams
-            nminus1grams = self.note_length_nminus1grams
-        else:
-            ngrams = self.interval_ngrams
-            nminus1grams = self.interval_nminus1grams
-
-        for length_idx in range(len(lengths) - self.m + 2):
+        for length_idx in range(len(length_pairs) - self.n + 2):
             # count n-1-gram
             nminus1gram = tuple(
-                [lengths[length_idx + offset] for offset in range(self.m - 1)]
+                [length_pairs[length_idx + offset] for offset in range(self.n - 1)]
             )
 
-            self.__count_ngram(nminus1grams, nminus1gram)
+            self.__count_ngram(self.length_nminus1grams, nminus1gram)
 
             # not last n-1 notes -> count n-gram
-            if length_idx != len(lengths) - self.m + 1:
-                ngram = nminus1gram + (lengths[length_idx + self.m - 1],)
+            if length_idx != len(length_pairs) - self.n + 1:
+                ngram = nminus1gram + (length_pairs[length_idx + self.n - 1],)
 
-                self.__count_ngram(ngrams, ngram)
+                self.__count_ngram(self.length_ngrams, ngram)
 
     def __count_track_length_occurences(
         self, lengths: list[int], if_note_lengths: bool
