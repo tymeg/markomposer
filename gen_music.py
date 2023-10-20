@@ -14,6 +14,7 @@ class MusicGenerator:
         self.note_length_ppbs = np.array([])
         self.pause_ppb = 0
 
+    # ================================ CHOICE METHODS ===========================
     def __add_ppb(
         self,
         ppbs: list[float],
@@ -60,7 +61,7 @@ class MusicGenerator:
         return note_choice
 
     def __choose_next_tuple(
-        self, prev_tuples: tuple[tuple[int]], with_octave: bool, if_melody: bool
+        self, prev_tuples: tuple[tuple[int]], with_octave: bool, melody: bool
     ) -> tuple[int]:
         if len(prev_tuples) != self.mm.n - 1:
             raise ValueError("With n-gram there has to be n-1 previous notes!")
@@ -77,7 +78,7 @@ class MusicGenerator:
                 for j in valid_lengths_range
                 for k in valid_lengths_range
             ]  # notes as numbers
-            if if_melody:
+            if melody:
                 ngrams = self.mm.melody_ngrams
                 nminus1grams = self.mm.melody_nminus1grams
             else:
@@ -90,7 +91,7 @@ class MusicGenerator:
                 for j in valid_lengths_range
                 for k in valid_lengths_range
             ]  # notes as strings
-            if if_melody:
+            if melody:
                 ngrams = self.mm.melody_ngrams_without_octaves
                 nminus1grams = self.mm.melody_nminus1grams_without_octaves
             else:
@@ -109,9 +110,7 @@ class MusicGenerator:
 
     def __choose_next_lengths_from_ngrams(self, prev_lengths: tuple[int]) -> int:
         if len(prev_lengths) != self.mm.n - 1:
-            raise ValueError(
-                f"With n-gram there has to be n-1 previous length_pairs!"
-            )
+            raise ValueError(f"With n-gram there has to be n-1 previous length_pairs!")
 
         valid_lengths_range = range(
             0, self.mm.lengths_range + 1, self.mm.length_precision
@@ -119,9 +118,7 @@ class MusicGenerator:
         ppbs = []
 
         length_pairs = [
-            (i, j)
-            for i in valid_lengths_range
-            for j in valid_lengths_range
+            (i, j) for i in valid_lengths_range for j in valid_lengths_range
         ]
 
         for length in length_pairs:
@@ -203,36 +200,6 @@ class MusicGenerator:
         )
         return length_choice
 
-    def __start_track(
-        self, mid: MidiFile, instrument: int
-    ) -> tuple[MidiTrack, int, int]:
-        track = MidiTrack()
-        mid.tracks.append(track)
-
-        tempo = self.__set_tempo(track)
-        key = self.__set_key(track)
-        # INSTRUMENT
-        track.append(Message("program_change", program=instrument, time=0))
-
-        return track, tempo, key
-
-    def __set_tempo(self, track) -> int:
-        # TODO: add custom tempo
-        if self.mm.main_tempo != 0:
-            tempo = self.mm.main_tempo
-            track.append(MetaMessage("set_tempo", tempo=tempo))
-        else:
-            tempo = utils.DEFAULT_TEMPO
-            track.append(MetaMessage("set_tempo"))  # default 500000
-        return tempo
-
-    def __set_key(self, track) -> str:
-        # TODO: set key, add custom key
-        # if self.mm.main_key != "":
-        #     key = self.mm.main_key
-        #     track.append(MetaMessage("key_signature", key=key))
-        pass
-
     def __specific_first_note(self, note: str, only_high_notes: bool) -> int:
         low_end = (
             utils.HIGH_NOTES_OCTAVE_THRESHOLD
@@ -261,14 +228,18 @@ class MusicGenerator:
         possible_notes = [
             utils.get_note_in_octave(note, octave) for octave in possible_octaves
         ]
-        if only_high_notes:
-            possible_notes = list(
-                filter(
-                    lambda note: utils.get_note_octave(note)
-                    >= utils.HIGH_NOTES_OCTAVE_THRESHOLD,
-                    possible_notes,
-                )
+        threshold = (
+            utils.HIGH_NOTES_OCTAVE_THRESHOLD
+            if only_high_notes
+            else utils.LOWEST_USED_OCTAVE
+        )
+
+        possible_notes = list(
+            filter(
+                lambda note: utils.get_note_octave(note) >= threshold,
+                possible_notes,
             )
+        )
         min_abs = 12
         for note in possible_notes:
             if abs(note - prev_note) < min_abs:
@@ -277,65 +248,38 @@ class MusicGenerator:
         return prev_note + offset
 
     def __first_nminus1_notes(
-        self, with_octave: bool, only_high_notes: bool
+        self, with_octave: bool
     ) -> tuple[tuple[int | str], list[int | str]]:
-        if with_octave:
-            while True:
-                prev_notes = random.choice(
-                    list(mm.note_nminus1grams.keys())
-                )  # could be also parameterized
-                first_notes = list(prev_notes)
-                if only_high_notes:
-                    if all(
-                        map(
-                            lambda note: utils.get_note_octave(note)
-                            >= utils.HIGH_NOTES_OCTAVE_THRESHOLD,
-                            first_notes,
-                        )
-                    ):
-                        break
-                else:
-                    break
-        else:
-            prev_notes = random.choice(
-                list(mm.note_nminus1grams_without_octaves.keys())
-            )  # could be also parameterized
-            first_notes = list(prev_notes)
+        nminus1grams = (
+            self.mm.note_nminus1grams
+            if with_octave
+            else self.mm.note_nminus1grams_without_octaves
+        )
+        prev_notes = random.choice(
+            list(nminus1grams.keys())
+        )  # could be also parameterized
+        first_notes = list(prev_notes)
+
         return prev_notes, first_notes
 
     def __first_nminus1_tuples(
-        self, with_octave: bool, only_high_notes: bool, if_melody: bool
+        self, with_octave: bool, melody: bool
     ) -> tuple[tuple[tuple[int | str]], list[tuple[int | str]]]:
         if with_octave:
             nminus1grams = (
-                mm.melody_nminus1grams if if_melody else mm.tuple_nminus1grams
+                self.mm.melody_nminus1grams if melody else self.mm.tuple_nminus1grams
             )
-            while True:
-                prev_tuples = random.choice(
-                    list(nminus1grams.keys())
-                )  # could be also parameterized
-                first_tuples = list(prev_tuples)
-                if only_high_notes:
-                    if all(
-                        map(
-                            lambda tuple: utils.get_note_octave(tuple[0])
-                            >= utils.HIGH_NOTES_OCTAVE_THRESHOLD,
-                            first_tuples,
-                        )
-                    ):
-                        break
-                else:
-                    break
         else:
             nminus1grams = (
-                mm.melody_nminus1grams_without_octaves
-                if if_melody
-                else mm.tuple_nminus1grams_without_octaves
+                self.mm.melody_nminus1grams_without_octaves
+                if melody
+                else self.mm.tuple_nminus1grams_without_octaves
             )
-            prev_tuples = random.choice(
-                list(nminus1grams.keys())
-            )  # could be also parameterized
-            first_tuples = list(prev_tuples)
+        prev_tuples = random.choice(
+            list(nminus1grams.keys())
+        )  # could be also parameterized
+        first_tuples = list(prev_tuples)
+
         return prev_tuples, first_tuples
 
     def __pick_specific_note(
@@ -350,21 +294,12 @@ class MusicGenerator:
             next_note = first_notes.pop(0)
             print(f"Chosen {next_note} note")
         else:
-            while True:
-                next_note = self.__choose_next_note(prev_notes, with_octave)
-                if next_note is None:
-                    # raise RuntimeError(
-                    #     "Couldn't find next note and finish track. Try again or set smaller n."
-                    # )  # ugly error for now
-                    return None
-                if with_octave and only_high_notes:
-                    if (
-                        utils.get_note_octave(next_note)
-                        >= utils.HIGH_NOTES_OCTAVE_THRESHOLD
-                    ):
-                        break
-                else:
-                    break
+            next_note = self.__choose_next_note(prev_notes, with_octave)
+            if next_note is None:
+                # raise RuntimeError(
+                #     "Couldn't find next note and finish track. Try again or set smaller n."
+                # )  # ugly error for now
+                return None
             print(f"Chosen {next_note} note after {prev_notes}")
             prev_notes = prev_notes[1:] + (next_note,)
 
@@ -385,30 +320,19 @@ class MusicGenerator:
         with_octave: bool,
         only_high_notes: bool,
         prev_note: int,
-        if_melody: bool,
+        melody: bool,
         total_time: int = 0,
     ) -> tuple[tuple[int], tuple[tuple[int]], int]:
         if first_tuples:
             next_tuple = first_tuples.pop(0)
             print(f"Chosen {next_tuple}")
         else:
-            while True:
-                next_tuple = self.__choose_next_tuple(
-                    prev_tuples, with_octave, if_melody
-                )
-                if next_tuple is None:
-                    # raise RuntimeError(
-                    #     "Couldn't find next note and finish track. Try again or set smaller n."
-                    # )  # ugly error for now
-                    return None
-                if with_octave and only_high_notes:
-                    if (
-                        utils.get_note_octave(next_tuple[0])
-                        >= utils.HIGH_NOTES_OCTAVE_THRESHOLD
-                    ):
-                        break
-                else:
-                    break
+            next_tuple = self.__choose_next_tuple(prev_tuples, with_octave, melody)
+            if next_tuple is None:
+                # raise RuntimeError(
+                #     "Couldn't find next note and finish track. Try again or set smaller n."
+                # )  # ugly error for now
+                return None
             print(f"Chosen {next_tuple} after {prev_tuples}")
             prev_tuples = prev_tuples[1:] + (next_tuple,)
 
@@ -427,6 +351,36 @@ class MusicGenerator:
                 )
 
         return next_tuple, prev_tuples, total_time + next_tuple[2]
+
+    # =============================== TRACK METHODS ========================
+    def __start_track(
+        self, mid: MidiFile, instrument: int
+    ) -> tuple[MidiTrack, int, int]:
+        track = MidiTrack()
+        mid.tracks.append(track)
+
+        tempo = self.__set_tempo(track)
+        key = self.__set_key(track)
+        # INSTRUMENT
+        track.append(Message("program_change", program=instrument, time=0))
+
+        return track, tempo, key
+
+    def __set_tempo(self, track) -> int:
+        # TODO: add custom tempo
+        if self.mm.main_tempo != 0:
+            tempo = self.mm.main_tempo
+            track.append(MetaMessage("set_tempo", tempo=tempo))
+        else:
+            tempo = utils.DEFAULT_TEMPO
+            track.append(MetaMessage("set_tempo"))  # default 500000
+        return tempo
+
+    def __set_key(self, track) -> str | None:
+        key = self.mm.main_key
+        if key is not None:
+            track.append(MetaMessage("key_signature", key=key))
+        return key
 
     def __print_track(self, output_file: str) -> None:
         print("Generated track:")
@@ -577,6 +531,7 @@ class MusicGenerator:
         output_file: str,
         bars: int,
         instrument: int,
+        with_octave: bool = True,
         only_high_notes: bool = False,
         no_pauses: bool = False,
     ) -> None:
@@ -587,14 +542,17 @@ class MusicGenerator:
 
         # TIME SIGNATURE CHOICE - TODO: add custom time signature? close in function
         if (
-            mm.main_beats_per_bar != 0 and mm.main_beat_value != 0
+            self.mm.main_beats_per_bar != 0 and self.mm.main_beat_value != 0
         ):  # input .mid had time signature specified
-            beats_per_bar, beat_value = mm.main_beats_per_bar, mm.main_beat_value
+            beats_per_bar, beat_value = (
+                self.mm.main_beats_per_bar,
+                self.mm.main_beat_value,
+            )
             track.append(
                 MetaMessage(
                     "time_signature",
-                    numerator=mm.main_beats_per_bar,
-                    denominator=mm.main_beat_value,
+                    numerator=self.mm.main_beats_per_bar,
+                    denominator=self.mm.main_beat_value,
                 )
             )
         else:
@@ -622,11 +580,7 @@ class MusicGenerator:
         if not no_pauses:
             self.__calculate_pause_ppb()
 
-        # for now use ngrams without octaves iff only_high_notes
-        with_octave = False if only_high_notes else True
-        prev_notes, first_notes = self.__first_nminus1_notes(
-            with_octave, only_high_notes
-        )
+        prev_notes, first_notes = self.__first_nminus1_notes(with_octave)
 
         interval = 0
         last_note = -1
@@ -666,6 +620,7 @@ class MusicGenerator:
         output_file: str,
         bars: int,
         instrument: int,
+        with_octave: bool = True,
         only_high_notes: bool = False,
     ) -> None:
         new_mid = MidiFile(
@@ -677,14 +632,10 @@ class MusicGenerator:
         bar_length = utils.DEFAULT_BEATS_PER_BAR * new_mid.ticks_per_beat
         time_in_bar = 0
 
-        # for now use ngrams without octaves iff only_high_notes
-        with_octave = False if only_high_notes else True
-        prev_notes, first_notes = self.__first_nminus1_notes(
-            with_octave, only_high_notes
-        )
+        prev_notes, first_notes = self.__first_nminus1_notes(with_octave)
 
         prev_lengths = random.choice(
-            list(mm.length_nminus1grams.keys())
+            list(self.mm.length_nminus1grams.keys())
         )  # could be also parameterized
         first_lengths = list(prev_lengths)
 
@@ -705,8 +656,9 @@ class MusicGenerator:
             prev_note = next_note
 
             if first_lengths:
-                note_length, interval = first_lengths.pop(0)
-                print(f"Chosen {note_length} note length")
+                length_pair = first_lengths.pop(0)
+                note_length, interval = length_pair
+                print(f"Chosen {length_pair} lengths")
             else:
                 length_pair = self.__choose_next_lengths_from_ngrams(prev_lengths)
                 if length_pair is None:
@@ -733,6 +685,7 @@ class MusicGenerator:
         output_file: str,
         bars: int,
         instrument: int,
+        with_octave: bool = True,
         only_high_notes: bool = False,
     ) -> None:
         new_mid = MidiFile(
@@ -744,16 +697,12 @@ class MusicGenerator:
         bar_length = utils.DEFAULT_BEATS_PER_BAR * new_mid.ticks_per_beat
         time_in_bar = 0
 
-        # for now use ngrams without octaves iff only_high_notes
-        with_octave = False if only_high_notes else True
-        prev_tuples, first_tuples = self.__first_nminus1_tuples(
-            with_octave, only_high_notes, True
-        )
+        prev_tuples, first_tuples = self.__first_nminus1_tuples(with_octave, True)
 
         # MUSIC GENERATION LOOP
+        interval = 0
         bar = 0
         prev_note = -1
-        first_note = True
         while bar < bars:
             ret = self.__pick_tuple(
                 first_tuples,
@@ -767,16 +716,16 @@ class MusicGenerator:
                 print("Couldn't find next note - ending track!")
                 break
             next_tuple, prev_tuples, _ = ret
+            next_note = next_tuple[0]
 
-            next_note, note_length, interval = next_tuple
-            prev_note = next_note
-            if first_note:
-                interval = 0
-                first_note = False
             track.append(Message("note_on", note=next_note, time=int(interval)))
+            prev_note = next_note
+
+            _, note_length, interval = next_tuple
             track.append(Message("note_off", note=next_note, time=int(note_length)))
 
             bar += (time_in_bar + note_length + interval) // bar_length
+            time_in_bar = (time_in_bar + note_length + interval) % bar_length
 
         new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
 
@@ -787,6 +736,7 @@ class MusicGenerator:
         output_file: str,
         bars: int,
         instrument: int,
+        with_octave: bool = True,
         only_high_notes: bool = False,
     ) -> None:
         new_mid = MidiFile(
@@ -797,11 +747,7 @@ class MusicGenerator:
         # for generated music's length purpose
         bar_length = utils.DEFAULT_BEATS_PER_BAR * new_mid.ticks_per_beat
 
-        # for now use ngrams without octaves iff only_high_notes
-        with_octave = False if only_high_notes else True
-        prev_tuples, first_tuples = self.__first_nminus1_tuples(
-            with_octave, only_high_notes, False
-        )
+        prev_tuples, first_tuples = self.__first_nminus1_tuples(with_octave, False)
 
         messages = []  # list of tuples (absolute start time, note, if_note_on)
         # ADDING MESSAGES LOOP
@@ -849,40 +795,55 @@ class MusicGenerator:
 
 # parse arguments - will be expanded and moved to main file
 n = 3
-# pathname = "ragtime.mid"
-
-# or dirname - e.g. -d or --dir flag
-pathname = "znane"
-
 if n < 2:
     raise ValueError("n must be >= 2!")
 
-mm = MarkovModel(n, True, pathname)
+pathname = "deb_clai.mid"
+mm = MarkovModel(n, False, pathname, key="C#m")
 
-generator = MusicGenerator(mm)
+# or dirname - e.g. -d or --dir flag
+# pathname = "chopin"
+# mm = MarkovModel(n, True, pathname)
 
-generator.generate_music_in_time_signature(
-    output_file="test1.mid",
-    bars=20,
-    instrument=1,
-    only_high_notes=False,
-    no_pauses=False,
-)
+if mm.processed_mids == 0:
+    raise ValueError(
+        "Couldn't process any mids - try turning off key or adding input mids with key encoded!"
+    )
+else:
+    generator = MusicGenerator(mm)
 
-generator.generate_music_with_length_ngrams(
-    output_file="test2.mid", bars=20, instrument=1, only_high_notes=False
-)
+    # TODO: when parsing user's input, don't allow calling generate_music
+    # with with_octave AND only_high_notes
 
-generator.generate_music_with_melody_ngrams(
-    output_file="test3.mid",
-    bars=20,
-    instrument=1,
-    only_high_notes=False,
-)
+    generator.generate_music_in_time_signature(
+        output_file="test1.mid",
+        bars=20,
+        instrument=1,
+        with_octave=True,
+        only_high_notes=False,
+        no_pauses=False,
+    )
 
-generator.generate_music_with_tuple_ngrams(
-    output_file="test4.mid",
-    bars=20,
-    instrument=1,
-    only_high_notes=False,
-)
+    generator.generate_music_with_length_ngrams(
+        output_file="test2.mid",
+        bars=20,
+        instrument=1,
+        with_octave=True,
+        only_high_notes=False,
+    )
+
+    generator.generate_music_with_melody_ngrams(
+        output_file="test3.mid",
+        bars=20,
+        instrument=1,
+        with_octave=True,
+        only_high_notes=False,
+    )
+
+    generator.generate_music_with_tuple_ngrams(
+        output_file="test4.mid",
+        bars=20,
+        instrument=1,
+        with_octave=True,
+        only_high_notes=False,
+    )

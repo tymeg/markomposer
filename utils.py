@@ -28,10 +28,10 @@ minor_intervals = [2, 1, 2, 2, 1, 2, 2]
 
 
 def get_note_in_octave(note: str, octave: int) -> int:
-    return (octave + 1) * 12 + get_note_number(note)
+    return (octave + 1) * 12 + get_note_index(note)
 
 
-def get_note_number(note: str) -> int:
+def get_note_index(note: str) -> int:
     return notes.index(note)
 
 
@@ -65,15 +65,23 @@ def flat_to_sharp(note: str) -> str:
             return note
 
 
+def is_minor(key: str) -> bool:
+    return key[-1] == "m"
+
+
+def get_tonic_note(key: str) -> str:
+    tonic_note = key[:-1] if is_minor(key) else key
+    return flat_to_sharp(tonic_note)
+
+
 def get_key_notes(key: str) -> str:
     key_notes = []
 
-    minor = key[-1] == "m"
-    tonic_note = key[:-1] if minor else key
-    tonic_note = flat_to_sharp(tonic_note)
+    minor = is_minor(key)
+    tonic_note = get_tonic_note(key)
 
     key_notes.append(tonic_note)
-    idx = notes.index(tonic_note)
+    idx = get_note_index(tonic_note)
     offset = 0
     for i in range(6):
         if minor:
@@ -83,6 +91,26 @@ def get_key_notes(key: str) -> str:
         key_notes.append(notes[(idx + offset) % 12])
 
     return key_notes
+
+
+def transpose(note: int, from_key: str, to_key: str) -> str:
+    from_tonic_note = get_tonic_note(from_key)
+    to_tonic_note = get_tonic_note(to_key)
+
+    diff = get_note_index(from_tonic_note) - get_note_index(to_tonic_note)
+    if diff < 0:  # transpose down
+        diff = 12 + diff
+    transposed_note = note - diff
+
+    if get_note_name(note) in get_key_notes(from_key) and (is_minor(from_key) is not is_minor(to_key)):
+        temp_key = to_key[:-1] if is_minor(to_key) else to_key + "m"
+        if get_key_notes(temp_key).index(get_note_name(transposed_note)) in [2, 5, 6]:
+            if is_minor(from_key) and not is_minor(to_key):
+                transposed_note += 1
+            else:
+                transposed_note -= 1
+
+    return transposed_note
 
 
 # print(get_key_notes('C'))
