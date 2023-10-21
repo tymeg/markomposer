@@ -17,9 +17,15 @@ class MarkovModel:
         self.note_nminus1grams_without_octaves = {}  # strings -> how many
 
         # default for beat=quarter note, changed in process_midi if beat value is different
-        self.length_precision = utils.DEFAULT_LENGTH_PRECISION
+        self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // (
+            utils.SHORTEST_NOTE // utils.DEFAULT_BEAT_VALUE
+        )
 
-        self.lengths_range = utils.DEFAULT_LENGTHS_RANGE
+        self.lengths_range = (
+            utils.LONGEST_IN_WHOLE_NOTES
+            * utils.DEFAULT_BEATS_PER_BAR
+            * utils.DEFAULT_TICKS_PER_BEAT
+        )
 
         # NOTE LENGTHS AND INTERVALS
         self.length_ngrams = {}
@@ -41,13 +47,19 @@ class MarkovModel:
 
         # main is currently first, maybe it should be the longest/most often among mid files?
         # if stays 0, will be set default later in music generation
-        self.current_beats_per_bar, self.main_beats_per_bar = 0, 0
-        self.current_beat_value, self.main_beat_value = 0, 0
+        self.__current_beats_per_bar, self.main_beats_per_bar = 0, 0
+        self.__current_beat_value, self.main_beat_value = 0, 0
         # but main_tempo is average tempo
-        self.current_tempo, self.main_tempo, self.tempos_count = 0, 0, 0
+        (
+            self.__current_tempo,
+            self.main_tempo,
+            self.__tempos_count,
+            self.__tempo_length,
+        ) = (0, 0, 0, 0)
         # given or None (don't force any specific key)
         self.main_key = key
-        self.current_key = ""
+        self.__current_key = ""
+        self.__keys = []
 
         self.path = os.path.join(os.getcwd(), pathname)  # CWD
         # self.path = os.path.join(os.path.dirname(__file__), pathname) # directory of markov.py
@@ -59,8 +71,8 @@ class MarkovModel:
         for mid in self.mids:
             self.__process_mid_file(mid)
 
-        if self.tempos_count > 1:
-            self.main_tempo = self.main_tempo // self.tempos_count  # average
+        if self.main_tempo > 0:
+            self.main_tempo //= self.__tempos_count
 
     def __collect_mid_files(self, dir: bool) -> None:
         if dir:
@@ -94,7 +106,7 @@ class MarkovModel:
             rounded_length = self.lengths_range
         return rounded_length
 
-    def __process_mid_file(self, mid: MidiFile) -> None:
+    def __process_mid_file(self, mid: MidiFile) -> int:
         print(f"Mid's name: {mid.filename}")
         print(f"Mid's length [sec]: {mid.length}")
         print(f"File type: {mid.type}")
@@ -103,7 +115,7 @@ class MarkovModel:
         # to count lengths properly - TODO: but does it mess up tempo?
         ticks_per_beat_factor = utils.DEFAULT_TICKS_PER_BEAT / mid.ticks_per_beat
         # list of pairs: (start in total ticks, key)
-        keys = []
+        self.__keys = []
 
         for track_idx, track in enumerate(mid.tracks):
             total_time = 0
@@ -118,19 +130,20 @@ class MarkovModel:
 
             print(f"Track {track_idx}: {track.name}")
             for msg in track:
-                # print(msg)
+                print(msg)
                 total_time += msg.time
-                if keys:
-                    if key_idx < len(keys) - 1:
-                        if total_time >= keys[key_idx + 1][0]:
+                self.__tempo_length += msg.time
+                if self.__keys:
+                    if key_idx < len(self.__keys) - 1:
+                        if total_time >= self.__keys[key_idx + 1][0]:
                             key_idx += 1
-                    self.current_key = keys[key_idx][1]
+                    self.__current_key = self.__keys[key_idx][1]
 
                 if interval != -1:
                     interval += msg.time
 
                 if msg.is_meta:
-                    self.__read_meta_message(msg, total_time, keys)
+                    self.__read_meta_message(msg, total_time)
                 else:
                     if msg.type == "note_on" and msg.velocity > 0:
                         currently_playing_notes_starts[msg.note] = total_time
@@ -147,12 +160,12 @@ class MarkovModel:
                         note = msg.note
 
                         # SKIPS THE FILE!
-                        if self.main_key and not self.current_key:
+                        if self.main_key and not self.__current_key:
                             return
 
-                        if self.main_key and self.current_key:
+                        if self.main_key and self.__current_key:
                             note = utils.transpose(
-                                note, self.current_key, self.main_key
+                                note, self.__current_key, self.main_key
                             )
                         note_lengths.append((start, total_time - start, note))
 
@@ -213,6 +226,9 @@ class MarkovModel:
 
         self.processed_mids += 1
 
+        self.main_tempo += self.__current_tempo
+        self.__tempos_count += 1
+
         # print(f"\nNotes n-grams: \n{self.note_ngrams}\n")
         # print(f"Notes n-grams without octaves: \n{self.note_ngrams_without_octaves}\n")
         # print(f"\nNotes n-1-grams: \n{self.note_nminus1grams}\n")
@@ -223,35 +239,35 @@ class MarkovModel:
         # print(f"Note length counts: \n{self.note_length_counts}")
         # print(f"Interval counts: \n{self.interval_counts}")
 
-    def __read_meta_message(
-        self, msg: MetaMessage, total_time: int, keys: list[str]
-    ) -> None:
+    def __read_meta_message(self, msg: MetaMessage, total_time: int) -> None:
         if msg.type == "set_tempo":
-            self.current_tempo = msg.tempo
-            self.main_tempo += self.current_tempo
-            self.tempos_count += 1
-            # print(
-            #     f"Tempo: {tempo2bpm(current_tempo)} BPM ({current_tempo} microseconds per quarter note)"
-            # )
+            if self.__current_tempo:
+                self.main_tempo += self.__current_tempo
+                self.__tempos_count += 1
+            self.__current_tempo = msg.tempo
+            print(
+                f"Tempo: {tempo2bpm(self.__current_tempo)} BPM ({self.__current_tempo} microseconds per quarter note)"
+            )
         if msg.type == "time_signature":
-            self.current_beats_per_bar = msg.numerator
-            if self.main_beats_per_bar == 0:
-                self.main_beats_per_bar = self.current_beats_per_bar
-            self.current_beat_value = msg.denominator
-            if self.main_beat_value == 0:
-                self.main_beat_value = self.current_beat_value
+            self.__current_beats_per_bar = msg.numerator
+            self.__current_beat_value = msg.denominator
+            if self.main_beats_per_bar == 0 and self.main_beat_value == 0:
+                self.main_beats_per_bar = self.__current_beats_per_bar
+                self.main_beat_value = self.__current_beat_value
                 # good?
                 self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // (
-                    32 // self.main_beat_value
+                    utils.SHORTEST_NOTE // self.main_beat_value
                 )
                 self.lengths_range = (
-                    2 * utils.DEFAULT_TICKS_PER_BEAT * self.main_beat_value
+                    utils.LONGEST_IN_WHOLE_NOTES
+                    * self.main_beats_per_bar
+                    * utils.DEFAULT_TICKS_PER_BEAT
                 )
             print(
-                f"Time signature: {self.current_beats_per_bar}/{self.current_beat_value}"
+                f"Time signature: {self.__current_beats_per_bar}/{self.__current_beat_value}"
             )
         if msg.type == "key_signature":
-            keys.append((total_time, msg.key))
+            self.__keys.append((total_time, msg.key))
             print(f"Key: {msg.key}")
 
     def __extract_melody(
@@ -288,8 +304,9 @@ class MarkovModel:
                     if note_lengths_dict.get((start, note_length, note)):
                         tolerance = self.length_precision // 3
                         if (
-                            (hstart > start and start + note_length - tolerance > hstart)
-                            or (start > hstart and hstart + hnote_length - tolerance > start)
+                            hstart > start and start + note_length - tolerance > hstart
+                        ) or (
+                            start > hstart and hstart + hnote_length - tolerance > start
                         ):
                             del note_lengths_dict[(start, note_length, note)]
                     boxes[box_idx].pop(0)

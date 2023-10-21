@@ -166,7 +166,7 @@ class MusicGenerator:
                 note_length
             ]
 
-        print(rounded_counts)
+        # print(rounded_counts)
         # CONTROVERSIAL
         # as 8th, 16th and 32nd notes are generated in groups, let's not favour them that much
         # TODO: improve
@@ -186,7 +186,7 @@ class MusicGenerator:
 
         self.note_length_ppbs = self.__normalize_ppbs(ppbs)
 
-        print(self.note_length_ppbs)
+        # print(self.note_length_ppbs)
 
     def __calculate_pause_ppb(self) -> None:
         # primitive way for now
@@ -361,12 +361,13 @@ class MusicGenerator:
 
         tempo = self.__set_tempo(track)
         key = self.__set_key(track)
+        beats_per_bar, beat_value = self.__set_time_signature(track)
         # INSTRUMENT
         track.append(Message("program_change", program=instrument, time=0))
 
-        return track, tempo, key
+        return track, tempo, key, beats_per_bar, beat_value
 
-    def __set_tempo(self, track) -> int:
+    def __set_tempo(self, track: MidiTrack) -> int:
         # TODO: add custom tempo
         if self.mm.main_tempo != 0:
             tempo = self.mm.main_tempo
@@ -376,11 +377,36 @@ class MusicGenerator:
             track.append(MetaMessage("set_tempo"))  # default 500000
         return tempo
 
-    def __set_key(self, track) -> str | None:
+    def __set_key(self, track: MidiTrack) -> str | None:
         key = self.mm.main_key
         if key is not None:
             track.append(MetaMessage("key_signature", key=key))
         return key
+    
+    def __set_time_signature(self, track: MidiTrack) -> tuple[int]:
+        # TODO: add custom time signature?
+        if (
+            self.mm.main_beats_per_bar != 0 and self.mm.main_beat_value != 0
+        ):  # input .mid had time signature specified
+            beats_per_bar, beat_value = (
+                self.mm.main_beats_per_bar,
+                self.mm.main_beat_value,
+            )
+            track.append(
+                MetaMessage(
+                    "time_signature",
+                    numerator=self.mm.main_beats_per_bar,
+                    denominator=self.mm.main_beat_value,
+                )
+            )
+        else:
+            beats_per_bar, beat_value = (
+                utils.DEFAULT_BEATS_PER_BAR,
+                utils.DEFAULT_BEAT_VALUE,
+            )
+            track.append(MetaMessage("time_signature"))  # default 4/4
+
+        return beats_per_bar, beat_value
 
     def __print_track(self, output_file: str) -> None:
         print("Generated track:")
@@ -538,33 +564,10 @@ class MusicGenerator:
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
         )  # one track
-        track, tempo, key = self.__start_track(new_mid, instrument)
-
-        # TIME SIGNATURE CHOICE - TODO: add custom time signature? close in function
-        if (
-            self.mm.main_beats_per_bar != 0 and self.mm.main_beat_value != 0
-        ):  # input .mid had time signature specified
-            beats_per_bar, beat_value = (
-                self.mm.main_beats_per_bar,
-                self.mm.main_beat_value,
-            )
-            track.append(
-                MetaMessage(
-                    "time_signature",
-                    numerator=self.mm.main_beats_per_bar,
-                    denominator=self.mm.main_beat_value,
-                )
-            )
-        else:
-            beats_per_bar, beat_value = (
-                utils.DEFAULT_BEATS_PER_BAR,
-                utils.DEFAULT_BEAT_VALUE,
-            )
-            track.append(MetaMessage("time_signature"))  # default 4/4
+        track, tempo, key, beats_per_bar, beat_value = self.__start_track(new_mid, instrument)
 
         bar_length = beats_per_bar * new_mid.ticks_per_beat
 
-        # time_in_bar, strong_beat, time_in_strong_beat = 0, 0, 0
         strong_beat_length = bar_length
         simple_time = beats_per_bar in [2, 3, 4]
         # simple time signatures
@@ -626,10 +629,10 @@ class MusicGenerator:
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
         )  # one track
-        track, tempo, key = self.__start_track(new_mid, instrument)
+        track, tempo, key, beats_per_bar, beat_value = self.__start_track(new_mid, instrument)
 
         # for generated music's length purpose
-        bar_length = utils.DEFAULT_BEATS_PER_BAR * new_mid.ticks_per_beat
+        bar_length = beats_per_bar * new_mid.ticks_per_beat
         time_in_bar = 0
 
         prev_notes, first_notes = self.__first_nminus1_notes(with_octave)
@@ -691,10 +694,10 @@ class MusicGenerator:
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
         )  # one track
-        track, tempo, key = self.__start_track(new_mid, instrument)
+        track, tempo, key, beats_per_bar, beat_value = self.__start_track(new_mid, instrument)
 
         # for generated music's length purpose
-        bar_length = utils.DEFAULT_BEATS_PER_BAR * new_mid.ticks_per_beat
+        bar_length = beats_per_bar * new_mid.ticks_per_beat
         time_in_bar = 0
 
         prev_tuples, first_tuples = self.__first_nminus1_tuples(with_octave, True)
@@ -742,10 +745,10 @@ class MusicGenerator:
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
         )  # one track
-        track, tempo, key = self.__start_track(new_mid, instrument)
+        track, tempo, key, beats_per_bar, beat_value = self.__start_track(new_mid, instrument)
 
         # for generated music's length purpose
-        bar_length = utils.DEFAULT_BEATS_PER_BAR * new_mid.ticks_per_beat
+        bar_length = beats_per_bar * new_mid.ticks_per_beat
 
         prev_tuples, first_tuples = self.__first_nminus1_tuples(with_octave, False)
 
@@ -768,9 +771,10 @@ class MusicGenerator:
                 break
             next_tuple, prev_tuples, start_of_next = ret
 
+            if not (prev_note == next_tuple[0] and prev_tuples[-1][2] == 0):
+                messages.append((total_time, next_tuple[0], True))
+                messages.append((total_time + next_tuple[1], next_tuple[0], False))
             prev_note = next_tuple[0]
-            messages.append((total_time, next_tuple[0], True))
-            messages.append((total_time + next_tuple[1], next_tuple[0], False))
 
             if total_time // bar_length >= bars:
                 break
@@ -798,12 +802,12 @@ n = 3
 if n < 2:
     raise ValueError("n must be >= 2!")
 
-pathname = "deb_clai.mid"
-mm = MarkovModel(n, False, pathname, key="C#m")
+# pathname = "fur_elise.mid"
+# mm = MarkovModel(n, False, pathname)
 
 # or dirname - e.g. -d or --dir flag
-# pathname = "chopin"
-# mm = MarkovModel(n, True, pathname)
+pathname = "chopin"
+mm = MarkovModel(n, True, pathname, "C")
 
 if mm.processed_mids == 0:
     raise ValueError(
@@ -842,7 +846,7 @@ else:
 
     generator.generate_music_with_tuple_ngrams(
         output_file="test4.mid",
-        bars=20,
+        bars=40,
         instrument=1,
         with_octave=True,
         only_high_notes=False,
