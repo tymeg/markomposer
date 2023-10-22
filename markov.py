@@ -64,7 +64,6 @@ class MarkovModel:
         self.path = os.path.join(os.getcwd(), pathname)  # CWD
         # self.path = os.path.join(os.path.dirname(__file__), pathname) # directory of markov.py
         self.mids = []
-        self.processed_mids = 0
 
         self.__collect_mid_files(dir)
 
@@ -130,7 +129,7 @@ class MarkovModel:
 
             print(f"Track {track_idx}: {track.name}")
             for msg in track:
-                print(msg)
+                # print(msg)
                 total_time += msg.time
                 self.__tempo_length += msg.time
                 if self.__keys:
@@ -159,7 +158,7 @@ class MarkovModel:
                         interval = 0
                         note = msg.note
 
-                        # SKIPS THE FILE!
+                        # optional - skip file
                         if self.main_key and not self.__current_key:
                             return
 
@@ -214,17 +213,18 @@ class MarkovModel:
                 )
                 length_pairs = list(zip(melody_note_lengths, melody_intervals))
 
+                # for generate_in_time_signature
+                # give them melody notes and lengths instead?
                 self.__count_track_note_ngrams(notes)
-
-                self.__count_track_length_ngrams(length_pairs)
-
-                self.__count_track_tuple_ngrams(melody_tuples, True)
-                self.__count_track_tuple_ngrams(all_tuples, False)
-
                 self.__count_track_length_occurences(rounded_note_lengths, True)
                 self.__count_track_length_occurences(rounded_intervals, False)
 
-        self.processed_mids += 1
+                # for generate_with_length_ngrams
+                self.__count_track_length_ngrams(length_pairs)
+
+                # for generate_in_tuple/melody_ngrams
+                self.__count_track_tuple_ngrams(melody_tuples, True)
+                self.__count_track_tuple_ngrams(all_tuples, False)
 
         self.main_tempo += self.__current_tempo
         self.__tempos_count += 1
@@ -245,9 +245,9 @@ class MarkovModel:
                 self.main_tempo += self.__current_tempo
                 self.__tempos_count += 1
             self.__current_tempo = msg.tempo
-            print(
-                f"Tempo: {tempo2bpm(self.__current_tempo)} BPM ({self.__current_tempo} microseconds per quarter note)"
-            )
+            # print(
+            #     f"Tempo: {tempo2bpm(self.__current_tempo)} BPM ({self.__current_tempo} microseconds per quarter note)"
+            # )
         if msg.type == "time_signature":
             self.__current_beats_per_bar = msg.numerator
             self.__current_beat_value = msg.denominator

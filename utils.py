@@ -4,16 +4,24 @@ DEFAULT_BEAT_VALUE = 4
 DEFAULT_TEMPO = 500000
 
 SHORTEST_NOTE = 32
+
+# flattens tempo
 # SHORTEST_NOTE = 16
+# SHORTEST_NOTE = 8
 
 # 0 to whole note
 LONGEST_IN_WHOLE_NOTES = 1
 # LONGEST_IN_WHOLE_NOTES = 2
 
+MAX_CHORD_SIZE = 4
+
 HIGH_NOTES_OCTAVE_THRESHOLD = 3
 
 LOWEST_USED_OCTAVE = 0
 HIGHEST_USED_OCTAVE = 6
+OCTAVES = (HIGHEST_USED_OCTAVE - LOWEST_USED_OCTAVE) + 1
+
+RANDOM_TRIALS = 1000
 
 notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
@@ -46,6 +54,12 @@ def get_note_octave(note: int) -> int:
 
 def get_note_name_with_octave(note: int) -> str:
     return get_note_name(note) + str(get_note_octave(note))
+
+
+notes_range = range(
+    get_note_in_octave("C", LOWEST_USED_OCTAVE),
+    get_note_in_octave("B", HIGHEST_USED_OCTAVE) + 1,
+)
 
 
 def flat_to_sharp(note: str) -> str:
@@ -103,7 +117,9 @@ def transpose(note: int, from_key: str, to_key: str) -> str:
         diff = 12 + diff
     transposed_note = note - diff
 
-    if get_note_name(note) in get_key_notes(from_key) and (is_minor(from_key) is not is_minor(to_key)):
+    if get_note_name(note) in get_key_notes(from_key) and (
+        is_minor(from_key) is not is_minor(to_key)
+    ):
         temp_key = to_key[:-1] if is_minor(to_key) else to_key + "m"
         if get_key_notes(temp_key).index(get_note_name(transposed_note)) in [2, 5, 6]:
             if is_minor(from_key) and not is_minor(to_key):
