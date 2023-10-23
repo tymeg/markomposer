@@ -904,43 +904,43 @@ class MusicGenerator:
 
 
 # parse arguments - will be expanded and moved to main file
-n = 3
+n = 2
 if n < 2:
     raise ValueError("n must be >= 2!")
 
-# pathname = "deb_clai.mid"
-# mm = MarkovModel(n, False, pathname)
+pathname = "toto-africa.mid"
+mm = MarkovModel(n=n, dir=False, pathname=pathname, merge_tracks=True, key=None)
 
 # or dirname - e.g. -d or --dir flag
-pathname = "chopin"
-mm = MarkovModel(n, True, pathname, "Bm")
+# pathname = "znane"
+# mm = MarkovModel(n=n, dir=True, pathname=pathname, merge_tracks=True, key="C")
 
 generator = MusicGenerator(mm)
 
-# generator.generate_music_in_time_signature(
-#     output_file="test1.mid",
-#     bars=20,
-#     instrument=1,
-#     with_octave=True,
-#     only_high_notes=False,
-#     no_pauses=False,
-# )
+generator.generate_music_in_time_signature(
+    output_file="test1.mid",
+    bars=20,
+    instrument=1,
+    with_octave=True,
+    only_high_notes=False,
+    no_pauses=False,
+)
 
-# generator.generate_music_with_length_ngrams(
-#     output_file="test2.mid",
-#     bars=20,
-#     instrument=1,
-#     with_octave=True,
-#     only_high_notes=False,
-# )
+generator.generate_music_with_length_ngrams(
+    output_file="test2.mid",
+    bars=20,
+    instrument=1,
+    with_octave=True,
+    only_high_notes=False,
+)
 
-# generator.generate_music_with_melody_ngrams(
-#     output_file="test3.mid",
-#     bars=20,
-#     instrument=1,
-#     with_octave=True,
-#     only_high_notes=False,
-# )
+generator.generate_music_with_melody_ngrams(
+    output_file="test3.mid",
+    bars=20,
+    instrument=1,
+    with_octave=True,
+    only_high_notes=False,
+)
 
 generator.generate_music_with_tuple_ngrams(
     output_file="test4.mid",
