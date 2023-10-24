@@ -12,9 +12,10 @@ SHORTEST_NOTE = 32
 LONGEST_IN_BARS = 1
 # LONGEST_IN_BARS = 2
 
-MAX_CHORD_SIZE = 4
+MAX_CHORD_SIZE = 3
+UNTIL_NEXT_CHORD = 1
 
-MAX_TRACKS_TO_MERGE = 9
+MAX_TRACKS_TO_MERGE = 5
 
 HIGH_NOTES_OCTAVE_THRESHOLD = 3
 
@@ -24,17 +25,76 @@ OCTAVES = (HIGHEST_USED_OCTAVE - LOWEST_USED_OCTAVE) + 1
 
 RANDOM_TRIALS = 1000
 
-notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+KEY_SIGNATURES = [  # from mido docs
+    "A",
+    "A#m",
+    "Ab",
+    "Abm",
+    "Am",
+    "B",
+    "Bb",
+    "Bbm",
+    "Bm",
+    "C",
+    "C#",
+    "C#m",
+    "Cb",
+    "Cm",
+    "D",
+    "D#m",
+    "Db",
+    "Dm",
+    "E",
+    "Eb",
+    "Ebm",
+    "Em",
+    "F",
+    "F#",
+    "F#m",
+    "Fm",
+    "G",
+    "G#m",
+    "Gb",
+    "Gm",
+]
+
+DISTINCT_TONIC_KEY_SIGNATURES = [
+    "A",
+    "Ab",
+    "Am",
+    "B",
+    "Bb",
+    "Bbm",
+    "Bm",
+    "C",
+    "C#",
+    "C#m",
+    "Cm",
+    "D",
+    "D#m",
+    "Dm",
+    "E",
+    "Eb",
+    "Em",
+    "F",
+    "F#",
+    "F#m",
+    "Fm",
+    "G",
+    "G#m",
+    "Gm",
+]
 
 # arbitrarily chosen note lengths to use - multipliers of 32nd note length
 # 32nd, 16th, 16., 8th, 8., 4th, 4., 2nd, 2., whole note
 # . - dotted note (e.g. 8. = 1.5 * 8th)
-note_lengths_simple_time = [1, 2, 4, 8, 16, 32]
-note_lengths_compound_time = [1, 2, 3, 4, 6, 12, 24]
+NOTE_LENGTHS_SIMPLE_TIME = [1, 2, 4, 8, 16, 32]
+NOTE_LENGTHS_COMPOUND_TIME = [1, 2, 3, 4, 6, 12, 24]
 
 # intervals in half notes
-major_intervals = [2, 2, 1, 2, 2, 2, 1]
-minor_intervals = [2, 1, 2, 2, 1, 2, 2]
+MAJOR_INTERVALS = [2, 2, 1, 2, 2, 2, 1]
+MINOR_INTERVALS = [2, 1, 2, 2, 1, 2, 2]
 
 
 def get_note_in_octave(note: str, octave: int) -> int:
@@ -42,11 +102,11 @@ def get_note_in_octave(note: str, octave: int) -> int:
 
 
 def get_note_index(note: str) -> int:
-    return notes.index(note)
+    return NOTES.index(note)
 
 
 def get_note_name(note: int) -> str:
-    return notes[note % 12]
+    return NOTES[note % 12]
 
 
 def get_note_octave(note: int) -> int:
@@ -57,7 +117,7 @@ def get_note_name_with_octave(note: int) -> str:
     return get_note_name(note) + str(get_note_octave(note))
 
 
-notes_range = range(
+NOTES_RANGE = range(
     get_note_in_octave("C", LOWEST_USED_OCTAVE),
     get_note_in_octave("B", HIGHEST_USED_OCTAVE) + 1,
 )
@@ -101,10 +161,10 @@ def get_key_notes(key: str) -> str:
     offset = 0
     for i in range(6):
         if minor:
-            offset += minor_intervals[i]
+            offset += MINOR_INTERVALS[i]
         else:
-            offset += major_intervals[i]
-        key_notes.append(notes[(idx + offset) % 12])
+            offset += MAJOR_INTERVALS[i]
+        key_notes.append(NOTES[(idx + offset) % 12])
 
     return key_notes
 
@@ -113,10 +173,14 @@ def transpose(note: int, from_key: str, to_key: str) -> str:
     from_tonic_note = get_tonic_note(from_key)
     to_tonic_note = get_tonic_note(to_key)
 
-    diff = get_note_index(from_tonic_note) - get_note_index(to_tonic_note)
-    if diff < 0:  # transpose down
-        diff = 12 + diff
-    transposed_note = note - diff
+    diff = get_note_index(to_tonic_note) - get_note_index(from_tonic_note)
+    if get_note_octave(note) == LOWEST_USED_OCTAVE:  # transpose up
+        if diff < 0:
+            diff += 12
+    else:  # transpose down
+        if diff > 0:
+            diff -= 12
+    transposed_note = note + diff
 
     if get_note_name(note) in get_key_notes(from_key) and (
         is_minor(from_key) is not is_minor(to_key)
@@ -131,6 +195,44 @@ def transpose(note: int, from_key: str, to_key: str) -> str:
     return transposed_note
 
 
-# print(get_key_notes('C'))
-# print(get_key_notes('F#m'))
-# print(get_key_notes('Ab'))
+# can work quite properly only if there are no key changes in the song!
+def infer_key(all_notes: list[str]) -> str:
+    counts = {note: 0 for note in NOTES}
+    for note in all_notes:
+        counts[note] += 1
+
+    # calculate most often notes
+    notes = list(
+        map(
+            lambda entry: entry[0],
+            filter(
+                lambda entry: entry[1] > 0,
+                list(sorted(counts.items(), key=lambda entry: entry[1], reverse=True))[
+                    :7  # major and minor are heptatonic scales
+                ],
+            ),
+        )
+    )
+
+    key_candidates = []
+    while not key_candidates and notes:
+        for key in DISTINCT_TONIC_KEY_SIGNATURES:
+            key_notes = get_key_notes(key)
+            valid_key = True
+            for note in notes:
+                if note not in key_notes:
+                    valid_key = False
+                    break
+            if valid_key:
+                key_candidates.append(key)
+        notes.pop(-1)
+
+    if not key_candidates:  # probably cannot even happen
+        return None
+    key = key_candidates[0]
+    if (
+        len(key_candidates) > 1
+    ):  # mainly relative major/minor scales (maybe pentatonic as well?)
+        tonic_counts = [(key, counts[get_tonic_note(key)]) for key in key_candidates]
+        key = (max(tonic_counts, key=lambda entry: entry[1]))[0]
+    return key

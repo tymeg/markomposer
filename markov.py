@@ -60,12 +60,13 @@ class MarkovModel:
         ) = (0, 0, 0, 0)
         # given or None (don't force any specific key)
         self.main_key = key
-        self.__current_key = ""
+        self.__current_key = None
         self.__keys = []
 
         self.path = os.path.join(os.getcwd(), pathname)  # CWD
         # self.path = os.path.join(os.path.dirname(__file__), pathname) # directory of markov.py
         self.mids = []
+        self.processed_mids = 0
 
         self.__collect_mid_files(dir)
 
@@ -112,7 +113,7 @@ class MarkovModel:
     ) -> None:
         if note_lengths:
             note_lengths.sort()
-            notes = list(map(lambda tpl: tpl[2], note_lengths))
+            notes = list(map(lambda tpl: tpl[1], note_lengths))
             # print(f"Track {track_idx} notes: \n{notes}")
 
             time_between_note_starts = []
@@ -132,7 +133,7 @@ class MarkovModel:
 
             rounded_note_lengths = list(
                 map(
-                    lambda tpl: self.__round_time(tpl[1], ticks_per_beat_factor, True),
+                    lambda tpl: self.__round_time(tpl[2], ticks_per_beat_factor, True),
                     note_lengths,
                 )
             )
@@ -171,6 +172,26 @@ class MarkovModel:
                 self.tuple_nminus1grams_without_octaves,
             )
 
+    def __transpose_track(self, note_lengths: list[tuple[int]]) -> list[tuple[int]]:
+        notes_str = list(map(lambda tpl: utils.get_note_name(tpl[1]), note_lengths))
+        self.__current_key = utils.infer_key(notes_str)
+        if self.__current_key is None:
+            return None
+
+        print(f"Inferred key: {self.__current_key}")
+        if self.main_key != self.__current_key:
+            note_lengths = list(
+                map(
+                    lambda tpl: (
+                        tpl[0],
+                        utils.transpose(tpl[1], self.__current_key, self.main_key),
+                        tpl[2],
+                    ),
+                    note_lengths,
+                )
+            )
+        return note_lengths
+
     def __process_mid_file(self, mid: MidiFile, merge_tracks: bool) -> int:
         print(f"Mid's name: {mid.filename}")
         print(f"Mid's length [sec]: {mid.length}")
@@ -186,6 +207,9 @@ class MarkovModel:
             all_note_lengths = []
             merged_tracks = 0
 
+        if self.main_key:
+            first_notes_track = True
+
         for track_idx, track in enumerate(mid.tracks):
             total_time = 0
             key_idx = 0
@@ -196,7 +220,7 @@ class MarkovModel:
 
             print(f"Track {track_idx}: {track.name}")
             for msg in track:
-                # print(msg)
+                print(msg)
                 total_time += msg.time
                 self.__tempo_length += msg.time
                 if self.__keys:
@@ -215,32 +239,46 @@ class MarkovModel:
                     if (
                         msg.type == "note_on" and msg.velocity == 0
                     ) or msg.type == "note_off":
-                        start = currently_playing_notes_starts[msg.note]
-                        note = msg.note
+                        if currently_playing_notes_starts.get(msg.note):
+                            start = currently_playing_notes_starts[msg.note]
+                            note = msg.note
 
-                        # optional - skip file
-                        if self.main_key and not self.__current_key:
-                            return
-
-                        if self.main_key and self.__current_key:
-                            note = utils.transpose(
-                                note, self.__current_key, self.main_key
-                            )
-                        note_lengths.append((start, total_time - start, note))
+                            if (
+                                self.main_key
+                                and self.__current_key
+                                and self.main_key != self.__current_key
+                            ):
+                                note = utils.transpose(
+                                    note, self.__current_key, self.main_key
+                                )
+                            note_lengths.append((start, note, total_time - start))
 
             if merge_tracks:
                 all_note_lengths += note_lengths
                 merged_tracks += 1
                 if merged_tracks == utils.MAX_TRACKS_TO_MERGE:
-                    break
+                    break  # ignore the rest or count them individually?
             else:
+                if (
+                    self.main_key and not self.__current_key and first_notes_track and note_lengths
+                ):  # only happens on first track with notes
+                    note_lengths = self.__transpose_track(note_lengths)
+                    if note_lengths is None:
+                        return  # skip file in training
+                    first_notes_track = False
                 self.__count_all(note_lengths, ticks_per_beat_factor)
 
         if merge_tracks:
+            if self.main_key and not self.__current_key and note_lengths:
+                all_note_lengths = self.__transpose_track(all_note_lengths)
+                if all_note_lengths is None:
+                    return  # skip file in training
             self.__count_all(all_note_lengths, ticks_per_beat_factor)
 
         self.main_tempo += self.__current_tempo
         self.__tempos_count += 1
+        self.__current_key = None
+        self.processed_mids += 1
 
         # print(f"\nNotes n-grams: \n{self.note_ngrams}\n")
         # print(f"Notes n-grams without octaves: \n{self.note_ngrams_without_octaves}\n")
@@ -258,9 +296,9 @@ class MarkovModel:
                 self.main_tempo += self.__current_tempo
                 self.__tempos_count += 1
             self.__current_tempo = msg.tempo
-            # print(
-            #     f"Tempo: {tempo2bpm(self.__current_tempo)} BPM ({self.__current_tempo} microseconds per quarter note)"
-            # )
+            print(
+                f"Tempo: {tempo2bpm(self.__current_tempo)} BPM ({self.__current_tempo} microseconds per quarter note)"
+            )
         if msg.type == "time_signature":
             self.__current_beats_per_bar = msg.numerator
             self.__current_beat_value = msg.denominator
@@ -290,14 +328,14 @@ class MarkovModel:
 
         end_time = (
             note_lengths[len(note_lengths) - 1][0]
-            + note_lengths[len(note_lengths) - 1][1]
+            + note_lengths[len(note_lengths) - 1][2]
         )
         note_lengths_dict = {nl: True for nl in note_lengths}
 
         # in each box we have notes which play in that time frame of length_precision:
         # (note, start, note_length)
         boxes = [[] for i in range(end_time // self.length_precision + 1)]
-        for start, note_length, note in note_lengths:
+        for start, note, note_length in note_lengths:
             for box_idx in range(
                 start // self.length_precision,
                 math.ceil((start + note_length) / self.length_precision),
@@ -311,25 +349,25 @@ class MarkovModel:
         for box_idx in range(len(boxes)):
             if len(boxes[box_idx]) > 1:
                 # highest note in box
-                hnote, hstart, hnote_length = boxes[box_idx][len(boxes[box_idx]) - 1]
+                _, hstart, hnote_length = boxes[box_idx][len(boxes[box_idx]) - 1]
                 while len(boxes[box_idx]) > 1:
                     note, start, note_length = boxes[box_idx][0]
-                    if note_lengths_dict.get((start, note_length, note)):
+                    if note_lengths_dict.get((start, note, note_length)):
                         tolerance = self.length_precision // 3
                         if (
                             hstart > start and start + note_length - tolerance > hstart
                         ) or (
                             start > hstart and hstart + hnote_length - tolerance > start
                         ):
-                            del note_lengths_dict[(start, note_length, note)]
+                            del note_lengths_dict[(start, note, note_length)]
                     boxes[box_idx].pop(0)
 
         full_melody_note_lengths = sorted(list(note_lengths_dict.keys()))
-        melody_notes = list(map(lambda tpl: tpl[2], full_melody_note_lengths))
+        melody_notes = list(map(lambda tpl: tpl[1], full_melody_note_lengths))
         # round up - I don't want 0 length note lengths
         melody_note_lengths = list(
             map(
-                lambda tpl: self.__round_time(tpl[1], ticks_per_beat_factor, True),
+                lambda tpl: self.__round_time(tpl[2], ticks_per_beat_factor, True),
                 full_melody_note_lengths,
             )
         )
