@@ -6,7 +6,13 @@ import math
 
 class MarkovModel:
     def __init__(
-        self, n: int, dir: bool, pathname: str, merge_tracks: bool, key: str = None
+        self,
+        n: int,
+        dir: bool,
+        pathname: str,
+        merge_tracks: bool,
+        ignore_bass: bool,
+        key: str = None,
     ) -> None:
         self.n = n  # n-grams
 
@@ -71,7 +77,7 @@ class MarkovModel:
         self.__collect_mid_files(dir)
 
         for mid in self.mids:
-            self.__process_mid_file(mid, merge_tracks)
+            self.__process_mid_file(mid, merge_tracks, ignore_bass)
 
         if self.main_tempo > 0:
             self.main_tempo //= self.__tempos_count
@@ -192,7 +198,9 @@ class MarkovModel:
             )
         return note_lengths
 
-    def __process_mid_file(self, mid: MidiFile, merge_tracks: bool) -> int:
+    def __process_mid_file(
+        self, mid: MidiFile, merge_tracks: bool, ignore_bass: bool
+    ) -> int:
         print(f"Mid's name: {mid.filename}")
         print(f"Mid's length [sec]: {mid.length}")
         print(f"File type: {mid.type}")
@@ -202,6 +210,8 @@ class MarkovModel:
         ticks_per_beat_factor = utils.DEFAULT_TICKS_PER_BEAT / mid.ticks_per_beat
         # list of pairs: (start in total ticks, key)
         self.__keys = []
+        # dict: channel -> instrument
+        instruments = {ch: 0 for ch in range(16)}
 
         if merge_tracks:
             all_note_lengths = []
@@ -220,7 +230,7 @@ class MarkovModel:
 
             print(f"Track {track_idx}: {track.name}")
             for msg in track:
-                print(msg)
+                # print(msg)
                 total_time += msg.time
                 self.__tempo_length += msg.time
                 if self.__keys:
@@ -231,42 +241,59 @@ class MarkovModel:
 
                 if msg.is_meta:
                     self.__read_meta_message(msg, total_time)
-                else:
+                elif (  # ignore drums and percussive instruments/sound effects
+                    msg.channel != utils.DRUM_CHANNEL
+                    and instruments[msg.channel] < utils.PERCUSSIVE_INSTRUMENTS
+                ):
                     if msg.type == "note_on" and msg.velocity > 0:
-                        currently_playing_notes_starts[msg.note] = total_time
-                        # print(utils.get_note_name_with_octave(msg.note))
-                        # print(total_time)
-                    if (
+                        if (
+                            not ignore_bass
+                            or instruments[msg.channel] not in utils.BASS
+                        ):
+                            currently_playing_notes_starts[msg.note] = total_time
+                            # print(utils.get_note_name_with_octave(msg.note))
+                            # print(total_time)
+                    elif (
                         msg.type == "note_on" and msg.velocity == 0
                     ) or msg.type == "note_off":
-                        if currently_playing_notes_starts.get(msg.note):
-                            start = currently_playing_notes_starts[msg.note]
-                            note = msg.note
+                        if (
+                            not ignore_bass
+                            or instruments[msg.channel] not in utils.BASS
+                        ):
+                            if currently_playing_notes_starts.get(msg.note):
+                                start = currently_playing_notes_starts[msg.note]
+                                note = msg.note
 
-                            if (
-                                self.main_key
-                                and self.__current_key
-                                and self.main_key != self.__current_key
-                            ):
-                                note = utils.transpose(
-                                    note, self.__current_key, self.main_key
-                                )
-                            note_lengths.append((start, note, total_time - start))
+                                if (
+                                    self.main_key
+                                    and self.__current_key
+                                    and self.main_key != self.__current_key
+                                ):
+                                    note = utils.transpose(
+                                        note, self.__current_key, self.main_key
+                                    )
+                                note_lengths.append((start, note, total_time - start))
+                    elif msg.type == "program_change":
+                        instruments[msg.channel] = msg.program
+                        print(msg.program)
 
-            if merge_tracks:
-                all_note_lengths += note_lengths
-                merged_tracks += 1
-                if merged_tracks == utils.MAX_TRACKS_TO_MERGE:
-                    break  # ignore the rest or count them individually?
-            else:
-                if (
-                    self.main_key and not self.__current_key and first_notes_track and note_lengths
-                ):  # only happens on first track with notes
-                    note_lengths = self.__transpose_track(note_lengths)
-                    if note_lengths is None:
-                        return  # skip file in training
-                    first_notes_track = False
-                self.__count_all(note_lengths, ticks_per_beat_factor)
+            if note_lengths:
+                if merge_tracks:
+                    all_note_lengths += note_lengths
+                    merged_tracks += 1
+                    if merged_tracks == utils.MAX_TRACKS_TO_MERGE:
+                        break  # ignore the rest or count them individually?
+                else:
+                    if (
+                        self.main_key
+                        and not self.__current_key
+                        and first_notes_track
+                    ):  # only happens on first track with notes
+                        note_lengths = self.__transpose_track(note_lengths)
+                        if note_lengths is None:
+                            return  # skip file in training
+                        first_notes_track = False
+                    self.__count_all(note_lengths, ticks_per_beat_factor)
 
         if merge_tracks:
             if self.main_key and not self.__current_key and note_lengths:

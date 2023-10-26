@@ -892,12 +892,16 @@ if n < 2:
     raise ValueError("n must be >= 2!")
 
 # single file
-pathname = "fur_elise.mid"
-mm = MarkovModel(n=n, dir=False, pathname=pathname, merge_tracks=True, key="Gm")
+# pathname = "usa.mid"
+# mm = MarkovModel(
+#     n=n, dir=False, pathname=pathname, merge_tracks=True, ignore_bass=True, key="D"
+# )
 
 # or dirname - e.g. -d or --dir flag
-# pathname = "chopin"
-# mm = MarkovModel(n=n, dir=True, pathname=pathname, merge_tracks=True, key="D")
+pathname = "chopin"
+mm = MarkovModel(
+    n=n, dir=True, pathname=pathname, merge_tracks=True, ignore_bass=True, key="C"
+)
 
 if mm.processed_mids == 0:
     raise ValueError("Couldn't process any mids! Try turning off key signature.")
@@ -907,7 +911,7 @@ generator = MusicGenerator(mm)
 # generator.generate_music_in_time_signature(
 #     output_file="test1.mid",
 #     bars=20,
-#     instrument=1,
+#     instrument=0,
 #     with_octave=True,
 #     only_high_notes=False,
 #     no_pauses=False,
@@ -916,7 +920,7 @@ generator = MusicGenerator(mm)
 # generator.generate_music_with_length_ngrams(
 #     output_file="test2.mid",
 #     bars=20,
-#     instrument=1,
+#     instrument=0,
 #     with_octave=True,
 #     only_high_notes=False,
 # )
@@ -924,15 +928,15 @@ generator = MusicGenerator(mm)
 # generator.generate_music_with_melody_ngrams(
 #     output_file="test3.mid",
 #     bars=20,
-#     instrument=1,
+#     instrument=0,
 #     with_octave=True,
 #     only_high_notes=False,
 # )
 
 generator.generate_music_with_tuple_ngrams(
     output_file="test4.mid",
-    bars=20,
-    instrument=1,
+    bars=40,
+    instrument=0,
     with_octave=True,
     only_high_notes=False,
 )
