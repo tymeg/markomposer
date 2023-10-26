@@ -27,8 +27,6 @@ LOWEST_USED_OCTAVE = 0
 HIGHEST_USED_OCTAVE = 6
 OCTAVES = (HIGHEST_USED_OCTAVE - LOWEST_USED_OCTAVE) + 1
 
-RANDOM_TRIALS = 1000
-
 NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 KEY_SIGNATURES = [  # from mido docs
     "A",

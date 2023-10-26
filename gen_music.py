@@ -19,13 +19,13 @@ class MusicGenerator:
         self,
         ppbs: list[float],
         ngrams: dict[tuple],
-        nminus1grams: dict[tuple],
+        nminus1grams_count: int,
         prev: tuple,
         value: int | tuple[int],
     ) -> None:
         ngrams_count = ngrams.get(prev + (value,))
-        if ngrams_count is not None:
-            ppbs.append(ngrams_count / nminus1grams[prev])
+        if ngrams_count:
+            ppbs.append(ngrams_count / nminus1grams_count)
         else:
             ppbs.append(0)
 
@@ -62,21 +62,32 @@ class MusicGenerator:
             nminus1grams = self.mm.note_nminus1grams_without_octaves
 
         for note in notes:
-            self.__add_ppb(ppbs, ngrams, nminus1grams, prev_notes, note)
+            if self.__is_valid(note, with_octave, only_high_notes):
+                self.__add_ppb(ppbs, ngrams, nminus1grams[prev_notes], prev_notes, note)
+            else:
+                ppbs.append(0)
         if sum(ppbs) == 0:
-            return None  # no such n-grams
+            # emergency: choose nminus1gram (without first) so that next iteration can choose nth
+            nminus2grams_count = sum(
+                filter(
+                    lambda x: x is not None,
+                    [nminus1grams.get(prev_notes[1:] + (note,)) for note in notes],
+                )
+            )
+            ppbs = []
+            for note in notes:
+                if self.__is_valid(note, with_octave, only_high_notes):
+                    self.__add_ppb(
+                        ppbs, nminus1grams, nminus2grams_count, prev_notes, note
+                    )
+                else:
+                    ppbs.append(0)
+            if sum(ppbs) == 0:
+                return None  # can't choose next note
 
         ppbs = self.__normalize_ppbs(ppbs)
 
-        trials = 0
-        while True:
-            note_choice = np.random.choice(notes, p=ppbs)
-            if self.__is_valid(note_choice, with_octave, only_high_notes):
-                break
-            trials += 1
-            if trials > utils.RANDOM_TRIALS:
-                return None  # couldn't find valid note
-
+        note_choice = np.random.choice(notes, p=ppbs)
         return note_choice
 
     def __choose_next_tuple(
@@ -122,25 +133,38 @@ class MusicGenerator:
                 nminus1grams = self.mm.tuple_nminus1grams_without_octaves
 
         for tuple in tuples:
-            self.__add_ppb(ppbs, ngrams, nminus1grams, prev_tuples, tuple)
+            if self.__is_valid(tuple[0], with_octave, only_high_notes):
+                self.__add_ppb(
+                    ppbs, ngrams, nminus1grams[prev_tuples], prev_tuples, tuple
+                )
+            else:
+                ppbs.append(0)
         if sum(ppbs) == 0:
-            return None  # no such n-grams
+            # emergency: choose nminus1gram (without first) so that next iteration can choose nth
+            nminus2grams_count = sum(
+                filter(
+                    lambda x: x is not None,
+                    [nminus1grams.get(prev_tuples[1:] + (tuple,)) for tuple in tuples],
+                )
+            )
+            ppbs = []
+            for tuple in tuples:
+                if self.__is_valid(tuple[0], with_octave, only_high_notes):
+                    self.__add_ppb(
+                        ppbs, nminus1grams, nminus2grams_count, prev_tuples, tuple
+                    )
+                else:
+                    ppbs.append(0)
+            if sum(ppbs) == 0:
+                return None  # can't choose next tuple
 
         ppbs = self.__normalize_ppbs(ppbs)
 
-        trials = 0
-        while True:
-            tuple_index_choice = np.random.choice(len(tuples), p=ppbs)
-            tpl = tuples[tuple_index_choice]
-            if self.__is_valid(tpl[0], with_octave, only_high_notes):
-                break
-            trials += 1
-            if trials > utils.RANDOM_TRIALS:
-                return None  # couldn't find valid note
-
+        tuple_index_choice = np.random.choice(len(tuples), p=ppbs)
+        tpl = tuples[tuple_index_choice]
         return tpl
 
-    def __choose_next_lengths_from_ngrams(self, prev_lengths: tuple[int]) -> int:
+    def __choose_next_lengths_from_ngrams(self, prev_lengths: tuple[tuple[int]]) -> int:
         if len(prev_lengths) != self.mm.n - 1:
             raise ValueError(f"With n-gram there has to be n-1 previous length_pairs!")
 
@@ -153,16 +177,39 @@ class MusicGenerator:
             (i, j) for i in valid_lengths_range for j in valid_lengths_range
         ]
 
-        for length in length_pairs:
+        for length_pair in length_pairs:
             self.__add_ppb(
                 ppbs,
                 self.mm.length_ngrams,
-                self.mm.length_nminus1grams,
+                self.mm.length_nminus1grams[prev_lengths],
                 prev_lengths,
-                length,
+                length_pair,
             )
-        if sum(ppbs) == 0:
-            return None  # no such n-grams
+        if (
+            sum(ppbs) == 0
+        ):  # emergency: choose nminus1gram (without first) so that next iteration can choose nth
+            nminus2grams_count = sum(
+                filter(
+                    lambda x: x is not None,
+                    [
+                        self.mm.length_nminus1grams.get(
+                            prev_lengths[1:] + (length_pair,)
+                        )
+                        for length_pair in length_pairs
+                    ],
+                )
+            )
+            ppbs = []
+            for length_pair in length_pairs:
+                self.__add_ppb(
+                    ppbs,
+                    self.mm.length_nminus1grams,
+                    nminus2grams_count,
+                    prev_lengths,
+                    length_pair,
+                )
+            if sum(ppbs) == 0:
+                return None  # can't choose next length_pair
 
         ppbs = self.__normalize_ppbs(ppbs)
 
@@ -908,30 +955,30 @@ if mm.processed_mids == 0:
 
 generator = MusicGenerator(mm)
 
-# generator.generate_music_in_time_signature(
-#     output_file="test1.mid",
-#     bars=20,
-#     instrument=0,
-#     with_octave=True,
-#     only_high_notes=False,
-#     no_pauses=False,
-# )
+generator.generate_music_in_time_signature(
+    output_file="test1.mid",
+    bars=20,
+    instrument=0,
+    with_octave=True,
+    only_high_notes=False,
+    no_pauses=False,
+)
 
-# generator.generate_music_with_length_ngrams(
-#     output_file="test2.mid",
-#     bars=20,
-#     instrument=0,
-#     with_octave=True,
-#     only_high_notes=False,
-# )
+generator.generate_music_with_length_ngrams(
+    output_file="test2.mid",
+    bars=20,
+    instrument=0,
+    with_octave=True,
+    only_high_notes=False,
+)
 
-# generator.generate_music_with_melody_ngrams(
-#     output_file="test3.mid",
-#     bars=20,
-#     instrument=0,
-#     with_octave=True,
-#     only_high_notes=False,
-# )
+generator.generate_music_with_melody_ngrams(
+    output_file="test3.mid",
+    bars=20,
+    instrument=0,
+    with_octave=True,
+    only_high_notes=False,
+)
 
 generator.generate_music_with_tuple_ngrams(
     output_file="test4.mid",
