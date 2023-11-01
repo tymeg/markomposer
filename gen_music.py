@@ -13,6 +13,12 @@ class MusicGenerator:
         self.note_lengths = []
         self.note_length_ppbs = np.array([])
         self.pause_ppb = 0
+        self.note_lengths_range = range(
+            self.mm.length_precision, self.mm.max_length + 1, self.mm.length_precision
+        )
+        self.until_next_range = range(
+            0, self.mm.max_length + 1, self.mm.length_precision
+        )
 
     # ================================ CHOICE METHODS ===========================
     def __add_ppb(
@@ -100,17 +106,13 @@ class MusicGenerator:
         if len(prev_tuples) != self.mm.n - 1:
             raise ValueError("With n-gram there has to be n-1 previous notes!")
 
-        valid_lengths_range = range(
-            0, self.mm.lengths_range + 1, self.mm.length_precision
-        )
         ppbs = []
-
         if with_octave:
             tuples = [
                 (i, j, k)
                 for i in range(128)
-                for j in valid_lengths_range
-                for k in valid_lengths_range
+                for j in self.note_lengths_range
+                for k in self.until_next_range
             ]  # notes as numbers
             if melody:
                 ngrams = self.mm.melody_ngrams
@@ -122,8 +124,8 @@ class MusicGenerator:
             tuples = [
                 (i, j, k)
                 for i in utils.NOTES
-                for j in valid_lengths_range
-                for k in valid_lengths_range
+                for j in self.note_lengths_range
+                for k in self.until_next_range
             ]  # notes as strings
             if melody:
                 ngrams = self.mm.melody_ngrams_without_octaves
@@ -168,15 +170,10 @@ class MusicGenerator:
         if len(prev_lengths) != self.mm.n - 1:
             raise ValueError(f"With n-gram there has to be n-1 previous length_pairs!")
 
-        valid_lengths_range = range(
-            0, self.mm.lengths_range + 1, self.mm.length_precision
-        )
         ppbs = []
-
         length_pairs = [
-            (i, j) for i in valid_lengths_range for j in valid_lengths_range
+            (i, j) for i in self.note_lengths_range for j in self.until_next_range
         ]
-
         for length_pair in length_pairs:
             self.__add_ppb(
                 ppbs,
@@ -882,11 +879,11 @@ class MusicGenerator:
                 print("Couldn't find next note - ending track!")
                 break
             next_tuple, prev_tuples = ret
-            next_note, note_length, until_next_start = next_tuple
+            next_note, note_length, until_next_note_start = next_tuple
 
-            if until_next_start == 0 and len(chord) == utils.MAX_CHORD_SIZE - 1:
+            if until_next_note_start == 0 and len(chord) == utils.MAX_CHORD_SIZE - 1:
                 # start new chord
-                until_next_start = utils.UNTIL_NEXT_CHORD * note_length
+                until_next_note_start = utils.UNTIL_NEXT_CHORD * note_length
 
             # ugly, changes octave if the note is doubled
             if not with_octave:
@@ -906,7 +903,7 @@ class MusicGenerator:
                 messages.append((total_time + note_length, next_note, False))
             prev_note = next_note
 
-            if until_next_start == 0:
+            if until_next_note_start == 0:
                 chord.add(next_note)
             else:
                 chord = {next_note}
@@ -914,7 +911,7 @@ class MusicGenerator:
             if total_time // bar_length >= bars:
                 break
 
-            total_time += until_next_start
+            total_time += until_next_note_start
 
         # sort messages by start time, append them to track
         messages.sort()
@@ -955,35 +952,36 @@ if mm.processed_mids == 0:
 
 generator = MusicGenerator(mm)
 
-generator.generate_music_in_time_signature(
-    output_file="test1.mid",
-    bars=20,
-    instrument=0,
-    with_octave=True,
-    only_high_notes=False,
-    no_pauses=False,
-)
+if __name__ == '__main__':
+    generator.generate_music_in_time_signature(
+        output_file="test1.mid",
+        bars=20,
+        instrument=0,
+        with_octave=True,
+        only_high_notes=False,
+        no_pauses=False,
+    )
 
-generator.generate_music_with_length_ngrams(
-    output_file="test2.mid",
-    bars=20,
-    instrument=0,
-    with_octave=True,
-    only_high_notes=False,
-)
+    generator.generate_music_with_length_ngrams(
+        output_file="test2.mid",
+        bars=20,
+        instrument=0,
+        with_octave=True,
+        only_high_notes=False,
+    )
 
-generator.generate_music_with_melody_ngrams(
-    output_file="test3.mid",
-    bars=20,
-    instrument=0,
-    with_octave=True,
-    only_high_notes=False,
-)
+    generator.generate_music_with_melody_ngrams(
+        output_file="test3.mid",
+        bars=20,
+        instrument=0,
+        with_octave=True,
+        only_high_notes=False,
+    )
 
-generator.generate_music_with_tuple_ngrams(
-    output_file="test4.mid",
-    bars=40,
-    instrument=0,
-    with_octave=True,
-    only_high_notes=False,
-)
+    generator.generate_music_with_tuple_ngrams(
+        output_file="test4.mid",
+        bars=20,
+        instrument=0,
+        with_octave=True,
+        only_high_notes=False,
+    )

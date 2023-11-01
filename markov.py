@@ -29,7 +29,7 @@ class MarkovModel:
             utils.SHORTEST_NOTE // utils.DEFAULT_BEAT_VALUE
         )
 
-        self.lengths_range = (
+        self.max_length = (
             utils.LONGEST_IN_BARS
             * utils.DEFAULT_BEATS_PER_BAR
             * utils.DEFAULT_TICKS_PER_BEAT
@@ -71,6 +71,10 @@ class MarkovModel:
 
         self.path = os.path.join(os.getcwd(), pathname)  # CWD
         # self.path = os.path.join(os.path.dirname(__file__), pathname) # directory of markov.py
+        self.notes_list_file = open(
+            os.path.join(os.path.dirname(__file__), "nanoGPT/data/music/input.txt"), "w"
+        )
+
         self.mids = []
         self.processed_mids = 0
 
@@ -81,6 +85,8 @@ class MarkovModel:
 
         if self.main_tempo > 0:
             self.main_tempo //= self.__tempos_count
+
+        self.notes_list_file.close()
 
     def __collect_mid_files(self, dir: bool) -> None:
         if dir:
@@ -110,8 +116,8 @@ class MarkovModel:
             round_fun(length * ticks_per_beat_factor / self.length_precision)
             * self.length_precision
         )
-        if rounded_length > self.lengths_range:
-            rounded_length = self.lengths_range
+        if rounded_length > self.max_length:
+            rounded_length = self.max_length
         return rounded_length
 
     def __count_all(
@@ -177,6 +183,12 @@ class MarkovModel:
                 self.tuple_nminus1grams,
                 self.tuple_nminus1grams_without_octaves,
             )
+
+            # append to file for nanoGPT
+            for note, note_length, until_next_note_start in all_tuples:
+                self.notes_list_file.write(
+                    f"{str(note)},{str(note_length)},{str(until_next_note_start)} "
+                )
 
     def __transpose_track(self, note_lengths: list[tuple[int]]) -> list[tuple[int]]:
         notes_str = list(map(lambda tpl: utils.get_note_name(tpl[1]), note_lengths))
@@ -285,9 +297,7 @@ class MarkovModel:
                         break  # ignore the rest or count them individually?
                 else:
                     if (
-                        self.main_key
-                        and not self.__current_key
-                        and first_notes_track
+                        self.main_key and not self.__current_key and first_notes_track
                     ):  # only happens on first track with notes
                         note_lengths = self.__transpose_track(note_lengths)
                         if note_lengths is None:
@@ -323,9 +333,9 @@ class MarkovModel:
                 self.main_tempo += self.__current_tempo
                 self.__tempos_count += 1
             self.__current_tempo = msg.tempo
-            print(
-                f"Tempo: {tempo2bpm(self.__current_tempo)} BPM ({self.__current_tempo} microseconds per quarter note)"
-            )
+            # print(
+            #     f"Tempo: {tempo2bpm(self.__current_tempo)} BPM ({self.__current_tempo} microseconds per quarter note)"
+            # )
         if msg.type == "time_signature":
             self.__current_beats_per_bar = msg.numerator
             self.__current_beat_value = msg.denominator
@@ -336,7 +346,7 @@ class MarkovModel:
                 self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // (
                     utils.SHORTEST_NOTE // self.main_beat_value
                 )
-                self.lengths_range = (
+                self.max_length = (
                     utils.LONGEST_IN_BARS
                     * self.main_beats_per_bar
                     * utils.DEFAULT_TICKS_PER_BEAT
