@@ -16,7 +16,7 @@ class MusicGenerator:
         self.note_lengths_range = range(
             self.mm.length_precision, self.mm.max_length + 1, self.mm.length_precision
         )
-        self.until_next_range = range(
+        self.until_next_note_range = range(
             0, self.mm.max_length + 1, self.mm.length_precision
         )
 
@@ -112,7 +112,7 @@ class MusicGenerator:
                 (i, j, k)
                 for i in range(128)
                 for j in self.note_lengths_range
-                for k in self.until_next_range
+                for k in self.until_next_note_range
             ]  # notes as numbers
             if melody:
                 ngrams = self.mm.melody_ngrams
@@ -125,7 +125,7 @@ class MusicGenerator:
                 (i, j, k)
                 for i in utils.NOTES
                 for j in self.note_lengths_range
-                for k in self.until_next_range
+                for k in self.until_next_note_range
             ]  # notes as strings
             if melody:
                 ngrams = self.mm.melody_ngrams_without_octaves
@@ -172,7 +172,7 @@ class MusicGenerator:
 
         ppbs = []
         length_pairs = [
-            (i, j) for i in self.note_lengths_range for j in self.until_next_range
+            (i, j) for i in self.note_lengths_range for j in self.until_next_note_range
         ]
         for length_pair in length_pairs:
             self.__add_ppb(
@@ -718,7 +718,6 @@ class MusicGenerator:
                     interval += note_length
 
         new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
-
         self.__print_track(output_file)
 
     def generate_music_with_length_ngrams(
@@ -785,7 +784,6 @@ class MusicGenerator:
             time_in_bar = (time_in_bar + note_length + interval) % bar_length
 
         new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
-
         self.__print_track(output_file)
 
     def generate_music_with_melody_ngrams(
@@ -838,8 +836,20 @@ class MusicGenerator:
             time_in_bar = (time_in_bar + note_length + interval) % bar_length
 
         new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
-
         self.__print_track(output_file)
+
+    def __append_messages(self, track: MidiTrack, messages: list[tuple]) -> None:
+        # sort messages by start time, append them to track
+        messages.sort()
+        prev_abs_time = 0
+        for message in messages:
+            start, note, is_note_on = message
+            delta_time = start - prev_abs_time
+            if is_note_on:
+                track.append(Message("note_on", note=note, time=delta_time))
+            else:
+                track.append(Message("note_off", note=note, time=delta_time))
+            prev_abs_time = message[0]
 
     def generate_music_with_tuple_ngrams(
         self,
@@ -913,22 +923,53 @@ class MusicGenerator:
 
             total_time += until_next_note_start
 
-        # sort messages by start time, append them to track
-        messages.sort()
-        prev_abs_time = 0
-        for message in messages:
-            start, note, is_note_on = message
-            delta_time = start - prev_abs_time
-            if is_note_on:
-                track.append(Message("note_on", note=note, time=delta_time))
-            else:
-                track.append(Message("note_off", note=note, time=delta_time))
-            prev_abs_time = message[0]
+        self.__append_messages(track, messages)
 
         new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
-
         self.__print_track(output_file)
 
+    def generate_music_from_file_nanogpt(
+        self,
+        input_filepath: str,
+        output_file: str,
+        instrument: int,
+    ) -> None:
+        new_mid = MidiFile(
+            type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
+        )  # one track
+        track, tempo, key = self.__start_track(new_mid, instrument)
+
+        # for generated music's length purpose
+        bar_length = utils.DEFAULT_BEATS_PER_BAR * new_mid.ticks_per_beat
+
+        with open(input_filepath) as f:
+            tuples = f.read().split()
+
+        messages = []  # list of tuples (absolute start time, note, if_note_on)
+        # ADDING MESSAGES LOOP
+        chord = set()
+        total_time = 0
+        for tuple in tuples:
+            next_note, note_length, until_next_note_start = map(int, map(lambda x: x[1:], tuple.split(",")))
+            if until_next_note_start == 0 and len(chord) == utils.MAX_CHORD_SIZE - 1:
+                # start new chord
+                until_next_note_start = utils.UNTIL_NEXT_CHORD * note_length
+
+            if next_note not in chord:
+                messages.append((total_time, next_note, True))
+                messages.append((total_time + note_length, next_note, False))
+
+            if until_next_note_start == 0:
+                chord.add(next_note)
+            else:
+                chord = {next_note}
+
+            total_time += until_next_note_start
+
+        self.__append_messages(track, messages)
+
+        new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
+        self.__print_track(output_file)
 
 # parse arguments - will be expanded and moved to main file
 n = 3
@@ -942,7 +983,7 @@ if n < 2:
 # )
 
 # or dirname - e.g. -d or --dir flag
-pathname = "chopin"
+pathname = "chopin_big"
 mm = MarkovModel(
     n=n, dir=True, pathname=pathname, merge_tracks=True, ignore_bass=True, key="C"
 )
@@ -980,8 +1021,14 @@ if __name__ == '__main__':
 
     generator.generate_music_with_tuple_ngrams(
         output_file="test4.mid",
-        bars=20,
+        bars=40,
         instrument=0,
         with_octave=True,
         only_high_notes=False,
+    )
+
+    generator.generate_music_from_file_nanogpt(
+        input_filepath="nanoGPT/test.txt",
+        output_file="test_gpt.mid",
+        instrument=0
     )

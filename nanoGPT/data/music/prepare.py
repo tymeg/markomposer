@@ -17,49 +17,62 @@ with open(input_file_path, "r") as f:
 print(f"length of dataset in characters: {len(data):,}")
 
 # note,note_length,until_next_note_start separated by spaces
-input_notes = data.split()
-print(f"length of dataset in notes: {len(input_notes):,}")
+# in specific format: e.g. N60,L120,I0
+input_values = data.split()
+print(f"length of dataset in notes: {len(input_values) // 3:,}")
+print(f"number of note lengths: {len(generator.note_lengths_range)}, number of interval lengths: {len(generator.until_next_note_range)}")
 
-all_notes = [
-    ",".join([str(note), str(note_length), str(until_next_note_start)])
-    for note in range(ALL_NOTES_COUNT)
-    for note_length in generator.note_lengths_range
-    for until_next_note_start in generator.until_next_range
-]
+# vocab consists of all valid values
+# notes = list(map(lambda note: "N" + str(note), range(ALL_NOTES_COUNT)))
+# note_lengths = list(map(lambda length: "L" + str(length), generator.note_lengths_range))
+# until_next_note_starts = list(map(lambda length: "I" + str(length), generator.until_next_note_range))
 
-vocab_size = (
-    ALL_NOTES_COUNT
-    * len(generator.note_lengths_range)
-    * len(generator.until_next_range)
-)
+# vocab consists of values only from input_values
+notes = sorted(list(set(input_values[::3])))
+note_lengths = sorted(list(set(input_values[1::3])))
+until_next_note_starts = sorted(list(set(input_values[2::3])))
+
+print(notes)
+print(note_lengths)
+print(until_next_note_starts)
+
+vocab = notes + note_lengths + until_next_note_starts
+vocab_size = len(vocab)
 print(f"vocab size: {vocab_size:,}")
 
-stoi = {note: i for i, note in enumerate(all_notes)}
-itos = {i: note for i, note in enumerate(all_notes)}
+stoi = {value: i for i, value in enumerate(vocab)}
+itos = {i: value for i, value in enumerate(vocab)}
 
 
-def encode(notes):
+def encode(values):
     return [
-        stoi[note] for note in notes
+        stoi[value] for value in values
     ]  # encoder: take a string, output a list of integers
 
 
 def decode(tokens):
-    return ",".join(
+    return " ".join(
         [itos[token] for token in tokens]
     )  # decoder: take a list of integers, output a string
 
 
 # create the train and test splits
-n = len(input_notes)
-train_data = input_notes[: int(n * 0.9)]
-val_data = input_notes[int(n * 0.9) :]
+n = len(input_values)
+# mod 3 = 0 because notes are 3 consecutive values
+border = (int(n * 0.8) // 3) * 3
+train_data = input_values[: border]
+val_data = input_values[border :]
 
 # encode both to integers
 train_ids = encode(train_data)
 val_ids = encode(val_data)
 print(f"train has {len(train_ids):,} tokens")
 print(f"val has {len(val_ids):,} tokens")
+
+with open("train_ids.txt", "w") as f:
+    f.write(" ".join(map(str, train_ids)))
+with open("val_ids.txt", "w") as f:
+    f.write(" ".join(map(str, val_ids)))
 
 # export to bin files
 train_ids = np.array(train_ids, dtype=np.uint32)

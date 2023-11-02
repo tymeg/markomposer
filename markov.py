@@ -187,7 +187,7 @@ class MarkovModel:
             # append to file for nanoGPT
             for note, note_length, until_next_note_start in all_tuples:
                 self.notes_list_file.write(
-                    f"{str(note)},{str(note_length)},{str(until_next_note_start)} "
+                    f"N{str(note)} L{str(note_length)} I{str(until_next_note_start)} "
                 )
 
     def __transpose_track(self, note_lengths: list[tuple[int]]) -> list[tuple[int]]:
