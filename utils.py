@@ -236,6 +236,7 @@ def infer_key(all_notes: list[str]) -> str:
     if (
         len(key_candidates) > 1
     ):  # mainly relative major/minor scales (maybe pentatonic as well?)
+        # choose more often as the tonic note
         tonic_counts = [(key, counts[get_tonic_note(key)]) for key in key_candidates]
         key = (max(tonic_counts, key=lambda entry: entry[1]))[0]
     return key

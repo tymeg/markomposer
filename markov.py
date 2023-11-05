@@ -2,6 +2,7 @@ import os
 import utils
 from mido import MidiFile, MetaMessage, tempo2bpm, bpm2tempo
 import math
+from typing import Dict
 
 
 class MarkovModel:
@@ -64,9 +65,11 @@ class MarkovModel:
             self.main_tempo,
             self.__tempos_count,
             self.__tempo_length,
-        ) = (0, bpm2tempo(tempo), 0, 0)
+        ) = (0, 0, 0, 0)
+        self.fixed_tempo = False
         if tempo:
             self.fixed_tempo = True
+            self.main_tempo = bpm2tempo(tempo)
 
         # given or None (don't force any specific key)
         self.main_key = key
@@ -389,9 +392,9 @@ class MarkovModel:
         if msg.type == "time_signature":
             self.__current_beats_per_bar = msg.numerator
             self.__current_beat_value = msg.denominator
-            if self.main_beats_per_bar == 0 and self.main_beat_value == 0:
-                self.main_beats_per_bar = self.__current_beats_per_bar
-                self.main_beat_value = self.__current_beat_value
+            # if self.main_beats_per_bar == 0 and self.main_beat_value == 0:
+                # self.main_beats_per_bar = self.__current_beats_per_bar
+                # self.main_beat_value = self.__current_beat_value
                 # good?
                 # self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // (
                 #     utils.SHORTEST_NOTE // self.main_beat_value
@@ -478,7 +481,7 @@ class MarkovModel:
 
         return melody_notes, melody_note_lengths, melody_intervals
 
-    def __count_ngram(self, ngrams: dict[tuple], counted_ngram: tuple) -> None:
+    def __count_ngram(self, ngrams: Dict[tuple, int], counted_ngram: tuple) -> None:
         if ngrams.get(counted_ngram) is not None:
             ngrams[counted_ngram] += 1
         else:
