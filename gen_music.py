@@ -942,15 +942,25 @@ class MusicGenerator:
         # for generated music's length purpose
         bar_length = utils.DEFAULT_BEATS_PER_BAR * new_mid.ticks_per_beat
 
+        # with open(input_filepath) as f:
+        #     tuples = f.read().split()
         with open(input_filepath) as f:
-            tuples = f.read().split()
+            values = f.read().split()
 
         messages = []  # list of tuples (absolute start time, note, if_note_on)
         # ADDING MESSAGES LOOP
         chord = set()
         total_time = 0
-        for tuple in tuples:
-            next_note, note_length, until_next_note_start = map(int, map(lambda x: x[1:], tuple.split(",")))
+        # for tuple in tuples:
+        # next_note, note_length, until_next_note_start = map(int, tuple.split(","))
+        while values:
+            next_note, note_length, until_next_note_start = (
+                int(values[0][1:]),
+                int(values[1][1:]),
+                int(values[2][1:]),
+            )
+            for i in range(3):
+                values.pop(0)
             if until_next_note_start == 0 and len(chord) == utils.MAX_CHORD_SIZE - 1:
                 # start new chord
                 until_next_note_start = utils.UNTIL_NEXT_CHORD * note_length
@@ -971,6 +981,7 @@ class MusicGenerator:
         new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
         self.__print_track(output_file)
 
+
 # parse arguments - will be expanded and moved to main file
 n = 3
 if n < 2:
@@ -983,9 +994,15 @@ if n < 2:
 # )
 
 # or dirname - e.g. -d or --dir flag
-pathname = "chopin_big"
+pathname = "beethoven"
 mm = MarkovModel(
-    n=n, dir=True, pathname=pathname, merge_tracks=True, ignore_bass=True, key="C"
+    n=n,
+    dir=True,
+    pathname=pathname,
+    merge_tracks=True,
+    ignore_bass=True,
+    key="C",
+    tempo=100,
 )
 
 if mm.processed_mids == 0:
@@ -993,7 +1010,7 @@ if mm.processed_mids == 0:
 
 generator = MusicGenerator(mm)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     generator.generate_music_in_time_signature(
         output_file="test1.mid",
         bars=20,
@@ -1027,8 +1044,8 @@ if __name__ == '__main__':
         only_high_notes=False,
     )
 
-    generator.generate_music_from_file_nanogpt(
-        input_filepath="nanoGPT/test.txt",
-        output_file="test_gpt.mid",
-        instrument=0
-    )
+    # generator.generate_music_from_file_nanogpt(
+    #     input_filepath="nanoGPT/test0.txt",
+    #     output_file="test_gpt2.mid",
+    #     instrument=0
+    # )

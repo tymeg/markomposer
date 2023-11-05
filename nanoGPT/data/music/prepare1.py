@@ -8,16 +8,16 @@ project_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
 
 sys.path.append(project_dir)
 from gen_music import generator
-from utils import ALL_NOTES_COUNT
+# from utils import ALL_NOTES_COUNT
 
-input_file_path = os.path.join(os.path.dirname(__file__), "input.txt")
+input_file_path = os.path.join(os.path.dirname(__file__), "input1.txt")
 
 with open(input_file_path, "r") as f:
     data = f.read()
 print(f"length of dataset in characters: {len(data):,}")
 
-# note,note_length,until_next_note_start separated by spaces
-# in specific format: e.g. N60,L120,I0
+# note note_length until_next_note_start separated by spaces
+# in specific format: e.g. N60 L120 I0
 input_values = data.split()
 print(f"length of dataset in notes: {len(input_values) // 3:,}")
 print(f"number of note lengths: {len(generator.note_lengths_range)}, number of interval lengths: {len(generator.until_next_note_range)}")
@@ -32,11 +32,12 @@ notes = sorted(list(set(input_values[::3])))
 note_lengths = sorted(list(set(input_values[1::3])))
 until_next_note_starts = sorted(list(set(input_values[2::3])))
 
+vocab = notes + note_lengths + until_next_note_starts
+
 print(notes)
 print(note_lengths)
 print(until_next_note_starts)
 
-vocab = notes + note_lengths + until_next_note_starts
 vocab_size = len(vocab)
 print(f"vocab size: {vocab_size:,}")
 
@@ -69,9 +70,9 @@ val_ids = encode(val_data)
 print(f"train has {len(train_ids):,} tokens")
 print(f"val has {len(val_ids):,} tokens")
 
-with open("train_ids.txt", "w") as f:
+with open(os.path.join(os.path.dirname(__file__), "train_ids.txt"), "w") as f:
     f.write(" ".join(map(str, train_ids)))
-with open("val_ids.txt", "w") as f:
+with open(os.path.join(os.path.dirname(__file__), "val_ids.txt"), "w") as f:
     f.write(" ".join(map(str, val_ids)))
 
 # export to bin files

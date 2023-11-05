@@ -1,6 +1,6 @@
 import os
 import utils
-from mido import MidiFile, MetaMessage, tempo2bpm
+from mido import MidiFile, MetaMessage, tempo2bpm, bpm2tempo
 import math
 
 
@@ -13,6 +13,7 @@ class MarkovModel:
         merge_tracks: bool,
         ignore_bass: bool,
         key: str = None,
+        tempo: int = 0,
     ) -> None:
         self.n = n  # n-grams
 
@@ -63,7 +64,10 @@ class MarkovModel:
             self.main_tempo,
             self.__tempos_count,
             self.__tempo_length,
-        ) = (0, 0, 0, 0)
+        ) = (0, bpm2tempo(tempo), 0, 0)
+        if tempo:
+            self.fixed_tempo = True
+
         # given or None (don't force any specific key)
         self.main_key = key
         self.__current_key = None
@@ -71,8 +75,13 @@ class MarkovModel:
 
         self.path = os.path.join(os.getcwd(), pathname)  # CWD
         # self.path = os.path.join(os.path.dirname(__file__), pathname) # directory of markov.py
-        self.notes_list_file = open(
-            os.path.join(os.path.dirname(__file__), "nanoGPT/data/music/input.txt"), "w"
+        self.notes_list_file1 = open(
+            os.path.join(os.path.dirname(__file__), "nanoGPT/data/music/input1.txt"),
+            "w",
+        )
+        self.notes_list_file2 = open(
+            os.path.join(os.path.dirname(__file__), "nanoGPT/data/music/input2.txt"),
+            "w",
         )
 
         self.mids = []
@@ -83,10 +92,11 @@ class MarkovModel:
         for mid in self.mids:
             self.__process_mid_file(mid, merge_tracks, ignore_bass)
 
-        if self.main_tempo > 0:
+        if self.main_tempo > 0 and not self.fixed_tempo:
             self.main_tempo //= self.__tempos_count
 
-        self.notes_list_file.close()
+        self.notes_list_file1.close()
+        self.notes_list_file2.close()
 
     def __collect_mid_files(self, dir: bool) -> None:
         if dir:
@@ -150,6 +160,43 @@ class MarkovModel:
                 )
             )
 
+            if self.fixed_tempo:
+                # if there are 32 notes, scale all lengths of track by 2
+                # (to normalize different tempos a bit)
+                if rounded_note_lengths.count(self.length_precision):
+                    rounded_note_lengths = list(
+                        map(
+                            lambda l: self.__round_time(
+                                2 * l, ticks_per_beat_factor, True
+                            ),
+                            rounded_note_lengths,
+                        )
+                    )
+                    time_between_note_starts = list(
+                        map(
+                            lambda l: self.__round_time(
+                                2 * l, ticks_per_beat_factor, True
+                            ),
+                            time_between_note_starts,
+                        )
+                    )
+                    melody_note_lengths = list(
+                        map(
+                            lambda l: self.__round_time(
+                                2 * l, ticks_per_beat_factor, True
+                            ),
+                            melody_note_lengths,
+                        )
+                    )
+                    melody_intervals = list(
+                        map(
+                            lambda l: self.__round_time(
+                                2 * l, ticks_per_beat_factor, True
+                            ),
+                            melody_intervals,
+                        )
+                    )
+
             melody_tuples = list(
                 zip(melody_notes, melody_note_lengths, melody_intervals)
             )
@@ -186,8 +233,11 @@ class MarkovModel:
 
             # append to file for nanoGPT
             for note, note_length, until_next_note_start in all_tuples:
-                self.notes_list_file.write(
+                self.notes_list_file1.write(
                     f"N{str(note)} L{str(note_length)} I{str(until_next_note_start)} "
+                )
+                self.notes_list_file2.write(
+                    f"{str(note)},{str(note_length)},{str(until_next_note_start)} "
                 )
 
     def __transpose_track(self, note_lengths: list[tuple[int]]) -> list[tuple[int]]:
@@ -328,7 +378,7 @@ class MarkovModel:
         # print(f"Interval counts: \n{self.interval_counts}")
 
     def __read_meta_message(self, msg: MetaMessage, total_time: int) -> None:
-        if msg.type == "set_tempo":
+        if msg.type == "set_tempo" and not self.fixed_tempo:
             if self.__current_tempo:
                 self.main_tempo += self.__current_tempo
                 self.__tempos_count += 1
@@ -343,14 +393,14 @@ class MarkovModel:
                 self.main_beats_per_bar = self.__current_beats_per_bar
                 self.main_beat_value = self.__current_beat_value
                 # good?
-                self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // (
-                    utils.SHORTEST_NOTE // self.main_beat_value
-                )
-                self.max_length = (
-                    utils.LONGEST_IN_BARS
-                    * self.main_beats_per_bar
-                    * utils.DEFAULT_TICKS_PER_BEAT
-                )
+                # self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // (
+                #     utils.SHORTEST_NOTE // self.main_beat_value
+                # )
+                # self.max_length = (
+                #     utils.LONGEST_IN_BARS
+                #     * self.main_beats_per_bar
+                #     * utils.DEFAULT_TICKS_PER_BEAT
+                # )
             print(
                 f"Time signature: {self.__current_beats_per_bar}/{self.__current_beat_value}"
             )
