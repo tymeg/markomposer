@@ -15,6 +15,7 @@ class MarkovModel:
         ignore_bass: bool,
         key: str = None,
         tempo: int = 0,
+        extra_tempo_flatten: bool = False,
     ) -> None:
         self.n = n  # n-grams
 
@@ -25,17 +26,6 @@ class MarkovModel:
         # n-1-grams
         self.note_nminus1grams = {}  # numbers -> how many
         self.note_nminus1grams_without_octaves = {}  # strings -> how many
-
-        # default for beat=quarter note, changed in process_midi if beat value is different
-        self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // (
-            utils.SHORTEST_NOTE // utils.DEFAULT_BEAT_VALUE
-        )
-
-        self.max_length = (
-            utils.LONGEST_IN_BARS
-            * utils.DEFAULT_BEATS_PER_BAR
-            * utils.DEFAULT_TICKS_PER_BEAT
-        )
 
         # NOTE LENGTHS AND INTERVALS
         self.length_ngrams = {}
@@ -67,9 +57,25 @@ class MarkovModel:
             self.__tempo_length,
         ) = (0, 0, 0, 0)
         self.fixed_tempo = False
+        self.shortest_note = utils.SHORTEST_NOTE
         if tempo:
             self.fixed_tempo = True
             self.main_tempo = bpm2tempo(tempo)
+            # tempo flattenization/normalization
+            self.shortest_note = utils.SHORTEST_NOTE // 2
+        if extra_tempo_flatten:
+            self.shortest_note = utils.SHORTEST_NOTE // 4
+
+        # default for beat=quarter note, changed in process_midi if beat value is different
+        self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // (
+            self.shortest_note // utils.DEFAULT_BEAT_VALUE
+        )
+
+        self.max_length = (
+            utils.LONGEST_IN_BARS
+            * utils.DEFAULT_BEATS_PER_BAR
+            * utils.DEFAULT_TICKS_PER_BEAT
+        )
 
         # given or None (don't force any specific key)
         self.main_key = key
@@ -162,43 +168,6 @@ class MarkovModel:
                     note_lengths,
                 )
             )
-
-            if self.fixed_tempo:
-                # if there are 32 notes, scale all lengths of track by 2
-                # (to normalize different tempos a bit)
-                if rounded_note_lengths.count(self.length_precision):
-                    rounded_note_lengths = list(
-                        map(
-                            lambda l: self.__round_time(
-                                2 * l, ticks_per_beat_factor, True
-                            ),
-                            rounded_note_lengths,
-                        )
-                    )
-                    time_between_note_starts = list(
-                        map(
-                            lambda l: self.__round_time(
-                                2 * l, ticks_per_beat_factor, True
-                            ),
-                            time_between_note_starts,
-                        )
-                    )
-                    melody_note_lengths = list(
-                        map(
-                            lambda l: self.__round_time(
-                                2 * l, ticks_per_beat_factor, True
-                            ),
-                            melody_note_lengths,
-                        )
-                    )
-                    melody_intervals = list(
-                        map(
-                            lambda l: self.__round_time(
-                                2 * l, ticks_per_beat_factor, True
-                            ),
-                            melody_intervals,
-                        )
-                    )
 
             melody_tuples = list(
                 zip(melody_notes, melody_note_lengths, melody_intervals)
