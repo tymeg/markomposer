@@ -56,36 +56,35 @@ class MusicGenerator:
             ppbs[value] = 0.0
 
     def __normalize_ppbs(self, ppbs: Dict[int | tuple, float]) -> np.ndarray[float]:
-        # sort by key and make list of values
-        ppbs = list(dict(sorted(ppbs.items(), key=lambda entry: entry[0])).values())
+        # make list only of ppbs
+        ppbs = list(ppbs.values())
 
         # normalize
         ppbs = np.array(ppbs, dtype="float64")
         ppbs /= ppbs.sum()
         return ppbs
 
-    def __sampling(self, ppbs: Dict[int | tuple, float]) -> Dict[int | tuple, float]:
+    def __sampling(self, ppbs: Dict[int | tuple, float]):
         # sort dict by value
-        ppbs = {
+        ppbs_from_highest = {
             k: v
             for k, v in sorted(ppbs.items(), key=lambda item: item[1], reverse=True)
         }
         if self.k:  # top-k sampling
             if self.k >= len(ppbs):
                 return ppbs
-            for key in list(ppbs.keys())[self.k :]:
+            for key in list(ppbs_from_highest.keys())[self.k :]:
                 ppbs[key] = 0.0
         elif self.p:  # top-p sampling
             cumulative_ppb = 0.0
             count = 0
-            for key in ppbs.keys():
-                cumulative_ppb += ppbs[key]
+            for key in ppbs_from_highest.keys():
+                cumulative_ppb += ppbs_from_highest[key]
                 count += 1
                 if cumulative_ppb >= self.p:
                     break
-            for key in list(ppbs.keys())[count:]:
+            for key in list(ppbs_from_highest.keys())[count:]:
                 ppbs[key] = 0.0
-        return ppbs
 
     def __is_valid(
         self, note: int | str, with_octave: bool, only_high_notes: bool
@@ -124,7 +123,7 @@ class MusicGenerator:
             return None  # can't choose next note
 
         if self.k or self.p:
-            ppbs = self.__sampling(ppbs)
+            self.__sampling(ppbs)
 
         ppbs = self.__normalize_ppbs(ppbs)
 
@@ -181,7 +180,7 @@ class MusicGenerator:
             return None  # can't choose next tuple
 
         if self.k or self.p:
-            ppbs = self.__sampling(ppbs)
+            self.__sampling(ppbs)
 
         ppbs = self.__normalize_ppbs(ppbs)
 
@@ -212,7 +211,7 @@ class MusicGenerator:
             return None  # can't choose next length_pair
 
         if self.k or self.p:
-            ppbs = self.__sampling(ppbs)
+            self.__sampling(ppbs)
 
         ppbs = self.__normalize_ppbs(ppbs)
 
@@ -1129,25 +1128,15 @@ if __name__ == "__main__":
         first_note="C",
     )
 
-    # GIVES BUG!
-    # generator.generate_music_with_melody_ngrams(
-    #     output_file="test3.mid",
-    #     bars=20,
-    #     instrument=0,
-    #     with_octave=False,
-    #     only_high_notes=True,
-    #     first_note="C",
-    # )
-    #
-    # generator.generate_music_with_tuple_ngrams(
-    #     output_file="test4.mid",
-    #     bars=40,
-    #     instrument=0,
-    #     with_octave=False,
-    #     only_high_notes=False,
-    #     first_note="A",
-    # )
-
+    generator.generate_music_with_melody_ngrams(
+        output_file="test3.mid",
+        bars=20,
+        instrument=0,
+        with_octave=True,
+        only_high_notes=False,
+        first_note="C",
+    )
+    
     generator.generate_music_with_tuple_ngrams(
         output_file="test4.mid",
         bars=40,
@@ -1160,7 +1149,7 @@ if __name__ == "__main__":
     # DIFFERENT SAMPLING METHODS
     # generator_uniform.generate_music_with_tuple_ngrams(
     #     output_file="test4_uniform.mid",
-    #     bars=40,
+    #     bars=20,
     #     instrument=0,
     #     with_octave=True,
     #     only_high_notes=False,
@@ -1169,7 +1158,7 @@ if __name__ == "__main__":
 
     # # generator_greedy.generate_music_with_tuple_ngrams(
     # #     output_file="test4_greedy.mid",
-    # #     bars=40,
+    # #     bars=20,
     # #     instrument=0,
     # #     with_octave=True,
     # #     only_high_notes=False,
@@ -1178,20 +1167,20 @@ if __name__ == "__main__":
 
     # generator_k3.generate_music_with_tuple_ngrams(
     #     output_file="test4_k3.mid",
-    #     bars=40,
+    #     bars=20,
     #     instrument=0,
     #     with_octave=True,
     #     only_high_notes=False,
-    #     # first_note="D",
+    #     first_note="D",
     # )
 
     # generator_p80.generate_music_with_tuple_ngrams(
     #     output_file="test4_p80.mid",
-    #     bars=40,
+    #     bars=20,
     #     instrument=0,
     #     with_octave=True,
     #     only_high_notes=False,
-    #     # first_note="C",
+    #     first_note="C",
     # )
 
     # generator.generate_music_from_file_nanogpt(
