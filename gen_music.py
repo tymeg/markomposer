@@ -188,36 +188,6 @@ class MusicGenerator:
         tpl = tuples[tuple_index_choice]
         return tpl
 
-    def __choose_next_lengths_from_ngrams(
-        self, prev_lengths: tuple[tuple[int]]
-    ) -> int | None:
-        if len(prev_lengths) != self.mm.n - 1:
-            raise ValueError(f"With n-gram there has to be n-1 previous length_pairs!")
-
-        # dict: length pair -> ppb of length pair
-        ppbs = {}
-        length_pairs = [
-            (i, j) for i in self.note_lengths_range for j in self.until_next_note_range
-        ]
-        for length_pair in length_pairs:
-            self.__add_ppb(
-                ppbs,
-                self.mm.length_ngrams,
-                self.mm.length_nminus1grams[prev_lengths],
-                prev_lengths,
-                length_pair,
-            )
-        if sum(ppbs.values()) == 0.0:
-            return None  # can't choose next length_pair
-
-        if self.k or self.p:
-            self.__sampling(ppbs)
-
-        ppbs = self.__normalize_ppbs(ppbs)
-
-        lengths_index_choice = np.random.choice(len(length_pairs), p=ppbs)
-        return length_pairs[lengths_index_choice]
-
     def __get_32nd_note_length(self, ticks_per_beat: int, beat_value: int) -> int:
         return ticks_per_beat // (32 // beat_value)
 
@@ -583,7 +553,6 @@ class MusicGenerator:
         return track, tempo, key
 
     def __set_tempo(self, track: MidiTrack) -> int:
-        # TODO: add custom tempo
         if self.mm.main_tempo != 0:
             tempo = self.mm.main_tempo
             track.append(MetaMessage("set_tempo", tempo=tempo))
@@ -599,27 +568,17 @@ class MusicGenerator:
         return key
 
     def __set_time_signature(self, track: MidiTrack) -> tuple[int]:
-        # TODO: add custom time signature?
-        if (
-            self.mm.main_beats_per_bar != 0 and self.mm.main_beat_value != 0
-        ):  # input .mid had time signature specified
-            beats_per_bar, beat_value = (
-                self.mm.main_beats_per_bar,
-                self.mm.main_beat_value,
+        beats_per_bar, beat_value = (
+            self.mm.main_beats_per_bar,
+            self.mm.main_beat_value,
+        )
+        track.append(
+            MetaMessage(
+                "time_signature",
+                numerator=self.mm.main_beats_per_bar,
+                denominator=self.mm.main_beat_value,
             )
-            track.append(
-                MetaMessage(
-                    "time_signature",
-                    numerator=self.mm.main_beats_per_bar,
-                    denominator=self.mm.main_beat_value,
-                )
-            )
-        else:
-            beats_per_bar, beat_value = (
-                utils.DEFAULT_BEATS_PER_BAR,
-                utils.DEFAULT_BEAT_VALUE,
-            )
-            track.append(MetaMessage("time_signature"))  # default 4/4
+        )
 
         return beats_per_bar, beat_value
 
@@ -817,64 +776,6 @@ class MusicGenerator:
                     interval = 0
                 else:
                     interval += note_length
-
-        new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
-        self.__print_track(output_file)
-
-    def generate_music_with_length_ngrams(
-        self,
-        output_file: str,
-        bars: int,
-        instrument: int,
-        with_octave: bool = True,
-        only_high_notes: bool = False,
-        first_note: str = None,
-    ) -> None:
-        new_mid = MidiFile(
-            type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
-        )  # one track
-        track, tempo, key = self.__start_track(new_mid, instrument)
-
-        # for generated music's length purpose
-        bar_length = utils.DEFAULT_BEATS_PER_BAR * new_mid.ticks_per_beat
-        time_in_bar = 0
-
-        ret = self.__first_nminus1_notes(with_octave, only_high_notes, first_note)
-        if ret is None:
-            raise ValueError(f"Can't start with note {first_note}!")
-        prev_notes, first_notes = ret
-
-        prev_lengths = random.choice(
-            list(self.mm.length_nminus1grams.keys())
-        )  # could be also parameterized
-        first_lengths = list(prev_lengths)
-
-        # MUSIC GENERATION LOOP
-        interval = 0
-        bar = 0
-        prev_note = -1
-        while bar < bars:
-            next_note, prev_notes = self.__pick_specific_note(
-                first_notes, prev_notes, with_octave, only_high_notes, prev_note
-            )
-
-            track.append(Message("note_on", note=next_note, time=int(interval)))
-            prev_note = next_note
-
-            if first_lengths:
-                length_pair = first_lengths.pop(0)
-                note_length, interval = length_pair
-                print(f"Chosen {length_pair} lengths")
-            else:
-                length_pair = self.__choose_next_lengths_from_ngrams(prev_lengths)
-                note_length, interval = length_pair
-                print(f"Chosen {length_pair} lengths after {prev_lengths}")
-                prev_lengths = prev_lengths[1:] + (length_pair,)
-
-            track.append(Message("note_off", note=next_note, time=int(note_length)))
-
-            bar += (time_in_bar + note_length + interval) // bar_length
-            time_in_bar = (time_in_bar + note_length + interval) % bar_length
 
         new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
         self.__print_track(output_file)
@@ -1097,6 +998,7 @@ mm = MarkovModel(
     key="C",
     tempo=80,
     # extra_tempo_flatten=True,
+    time_signature="3/4",
 )
 
 if mm.processed_mids == 0:
@@ -1119,17 +1021,8 @@ if __name__ == "__main__":
         first_note="C",
     )
 
-    generator.generate_music_with_length_ngrams(
-        output_file="test2.mid",
-        bars=20,
-        instrument=0,
-        with_octave=True,
-        only_high_notes=False,
-        first_note="C",
-    )
-
     generator.generate_music_with_melody_ngrams(
-        output_file="test3.mid",
+        output_file="test2.mid",
         bars=20,
         instrument=0,
         with_octave=True,
@@ -1138,7 +1031,7 @@ if __name__ == "__main__":
     )
     
     generator.generate_music_with_tuple_ngrams(
-        output_file="test4.mid",
+        output_file="test3.mid",
         bars=40,
         instrument=0,
         with_octave=True,
@@ -1148,7 +1041,7 @@ if __name__ == "__main__":
 
     # DIFFERENT SAMPLING METHODS
     # generator_uniform.generate_music_with_tuple_ngrams(
-    #     output_file="test4_uniform.mid",
+    #     output_file="test3_uniform.mid",
     #     bars=20,
     #     instrument=0,
     #     with_octave=True,
@@ -1157,7 +1050,7 @@ if __name__ == "__main__":
     # )
 
     # # generator_greedy.generate_music_with_tuple_ngrams(
-    # #     output_file="test4_greedy.mid",
+    # #     output_file="test3_greedy.mid",
     # #     bars=20,
     # #     instrument=0,
     # #     with_octave=True,
@@ -1166,7 +1059,7 @@ if __name__ == "__main__":
     # # )
 
     # generator_k3.generate_music_with_tuple_ngrams(
-    #     output_file="test4_k3.mid",
+    #     output_file="test3_k3.mid",
     #     bars=20,
     #     instrument=0,
     #     with_octave=True,
@@ -1175,7 +1068,7 @@ if __name__ == "__main__":
     # )
 
     # generator_p80.generate_music_with_tuple_ngrams(
-    #     output_file="test4_p80.mid",
+    #     output_file="test3_p80.mid",
     #     bars=20,
     #     instrument=0,
     #     with_octave=True,
