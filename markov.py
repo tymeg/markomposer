@@ -1,6 +1,6 @@
 import os
 import utils
-from mido import MidiFile, MetaMessage, tempo2bpm, bpm2tempo
+from mido import MidiFile, MetaMessage, tempo2bpm
 import math
 from typing import Dict
 
@@ -14,8 +14,6 @@ class MarkovModel:
         merge_tracks: bool,
         ignore_bass: bool,
         key: str = None,
-        tempo: int = None,
-        tempo_flatten: int = None,
         time_signature: str = None,
     ) -> None:
         self.n = n  # n-grams
@@ -35,11 +33,16 @@ class MarkovModel:
         # main is currently first, maybe it should be the longest/most often among mid files?
         # if stays 0, will be set default later in music generation
         self.fixed_time_signature = False
-        self.__current_beats_per_bar, self.main_beats_per_bar = 0, utils.DEFAULT_BEATS_PER_BAR
-        self.__current_beat_value, self.main_beat_value = 0, utils.DEFAULT_BEAT_VALUE
-        if time_signature:
+        self.__current_beats_per_bar, self.__current_beat_value = 0, 0
+        self.main_beats_per_bar, self.main_beat_value = (
+            utils.DEFAULT_BEATS_PER_BAR,
+            utils.DEFAULT_BEAT_VALUE,
+        )
+        if time_signature is not None:
             self.fixed_time_signature = True
-            self.main_beats_per_bar, self.main_beat_value = map(int, time_signature.split("/"))
+            self.main_beats_per_bar, self.main_beat_value = map(
+                int, time_signature.split("/")
+            )
 
         # but main_tempo is average tempo
         (
@@ -48,19 +51,12 @@ class MarkovModel:
             self.__tempos_count,
             self.__tempo_length,
         ) = (0, 0, 0, 0)
-        self.fixed_tempo = False
-        self.shortest_note = utils.SHORTEST_NOTE
-        if tempo:
-            self.fixed_tempo = True
-            self.main_tempo = bpm2tempo(tempo)
-        if tempo_flatten is not None:
-            # tempo flattenization/normalization
-            self.shortest_note = utils.SHORTEST_NOTE // tempo_flatten
 
-        # default: 32nd note; 16th or 8th note for flattened
+        # default: 32nd note
         self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // (
-            self.shortest_note // utils.DEFAULT_BEAT_VALUE
-            # self.shortest_note // self.main_beat_value # ??
+            utils.SHORTEST_NOTE
+            // utils.DEFAULT_BEAT_VALUE
+            # utils.SHORTEST_NOTE // self.main_beat_value # ??
         )
 
         self.max_length = (
@@ -69,12 +65,6 @@ class MarkovModel:
             * (utils.DEFAULT_TICKS_PER_BEAT // (self.main_beat_value // 4))
             # * utils.DEFAULT_TICKS_PER_BEAT # ??
         )
-
-        if self.fixed_time_signature:
-            if self.main_beats_per_bar in [2, 3, 4]:
-                self.used_note_lengths = list(map(lambda l: utils.TICKS_PER_32NOTE * l, utils.NOTE_LENGTHS_SIMPLE_TIME))
-            else: 
-                self.used_note_lengths = list(map(lambda l: utils.TICKS_PER_32NOTE * l, utils.NOTE_LENGTHS_COMPOUND_TIME))
 
         # given or None (don't force any specific key)
         self.main_key = key
@@ -100,7 +90,7 @@ class MarkovModel:
         for mid in self.mids:
             self.__process_mid_file(mid, merge_tracks, ignore_bass)
 
-        if self.main_tempo > 0 and not self.fixed_tempo:
+        if self.main_tempo > 0:
             self.main_tempo //= self.__tempos_count
 
         self.notes_list_file1.close()
@@ -134,11 +124,6 @@ class MarkovModel:
             round_fun(length * ticks_per_beat_factor / self.length_precision)
             * self.length_precision
         )
-        if self.fixed_time_signature:
-            for len_idx in range(1, len(self.used_note_lengths)):
-                if self.used_note_lengths[len_idx - 1] < rounded_length <= self.used_note_lengths[len_idx]:
-                    rounded_length = self.used_note_lengths[len_idx]
-                    break
 
         if rounded_length > self.max_length:
             rounded_length = self.max_length
@@ -344,7 +329,7 @@ class MarkovModel:
         # print(f"Interval counts: \n{self.interval_counts}")
 
     def __read_meta_message(self, msg: MetaMessage, total_time: int) -> None:
-        if msg.type == "set_tempo" and not self.fixed_tempo:
+        if msg.type == "set_tempo":
             if self.__current_tempo:
                 self.main_tempo += self.__current_tempo
                 self.__tempos_count += 1

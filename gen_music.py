@@ -1,8 +1,9 @@
 import os
 import utils
-from mido import MidiFile, MidiTrack, Message, MetaMessage, tempo2bpm
+from mido import MidiFile, MidiTrack, Message, MetaMessage, tempo2bpm, bpm2tempo
 import numpy as np
 import random
+import math
 from typing import Dict
 
 from markov import MarkovModel
@@ -32,6 +33,22 @@ class MusicGenerator:
         self.until_next_note_range = range(
             0, self.mm.max_length + 1, self.mm.length_precision
         )
+
+        if self.mm.fixed_time_signature:
+            if self.mm.main_beats_per_bar in [2, 3, 4]:
+                self.used_note_lengths = list(
+                    map(
+                        lambda l: utils.TICKS_PER_32NOTE * l,
+                        utils.NOTE_LENGTHS_SIMPLE_TIME,
+                    )
+                )
+            else:
+                self.used_note_lengths = list(
+                    map(
+                        lambda l: utils.TICKS_PER_32NOTE * l,
+                        utils.NOTE_LENGTHS_COMPOUND_TIME,
+                    )
+                )
 
     # ================================ CHOICE METHODS ===========================
     def __add_ppb(
@@ -325,39 +342,40 @@ class MusicGenerator:
 
     # =============================== TRACK METHODS ========================
     def __start_track(
-        self, mid: MidiFile, instrument: int
-    ) -> tuple[MidiTrack, int, int]:
+        self,
+        mid: MidiFile,
+        instrument: int,
+        tempo: int | None,
+    ) -> MidiTrack:
         track = MidiTrack()
         mid.tracks.append(track)
 
-        tempo = self.__set_tempo(track)
-        key = self.__set_key(track)
+        self.__set_tempo(track, tempo)
+        self.__set_key(track)
         # INSTRUMENT
         track.append(Message("program_change", program=instrument, time=0))
 
-        return track, tempo, key
+        return track
 
-    def __set_tempo(self, track: MidiTrack) -> int:
-        tempo = self.mm.main_tempo
+    def __set_tempo(self, track: MidiTrack, tempo: int | None) -> None:
+        if tempo is not None:
+            tempo = bpm2tempo(tempo)
+        else:
+            tempo = self.mm.main_tempo
         track.append(MetaMessage("set_tempo", tempo=tempo))
-        return tempo
 
-    def __set_key(self, track: MidiTrack) -> str | None:
+    def __set_key(self, track: MidiTrack) -> None:
         key = self.mm.main_key
         if key is not None:
             track.append(MetaMessage("key_signature", key=key))
-        return key
 
     def __set_time_signature(self, track: MidiTrack) -> tuple[int]:
-        beats_per_bar, beat_value = (
-            self.mm.main_beats_per_bar,
-            self.mm.main_beat_value,
-        )
+        beats_per_bar, beat_value = self.mm.main_beats_per_bar, self.mm.main_beat_value
         track.append(
             MetaMessage(
                 "time_signature",
-                numerator=self.mm.main_beats_per_bar,
-                denominator=self.mm.main_beat_value,
+                numerator=beats_per_bar,
+                denominator=beat_value,
             )
         )
 
@@ -387,6 +405,26 @@ class MusicGenerator:
 
         return strong_beat_length, simple_time
 
+    def __flatten_length(self, length: int, lengths_flatten_factor: int, up: bool) -> int:
+        if lengths_flatten_factor is not None:
+            round_fun = math.ceil if up else math.floor
+            length_precision = self.mm.length_precision * lengths_flatten_factor
+            length = round_fun(length / length_precision) * length_precision
+
+        if self.mm.fixed_time_signature:
+            for len_idx in range(1, len(self.used_note_lengths)):
+                if (
+                    self.used_note_lengths[len_idx - 1]
+                    < length
+                    <= self.used_note_lengths[len_idx]
+                ):
+                    length = self.used_note_lengths[len_idx]
+                    break
+
+        if length > self.mm.max_length:
+            length = self.mm.max_length
+        return length
+
     def generate_music_with_melody_ngrams(
         self,
         output_file: str,
@@ -395,11 +433,13 @@ class MusicGenerator:
         with_octave: bool = True,
         only_high_notes: bool = False,
         first_note: str = None,
+        tempo: int = None,
+        lengths_flatten_factor: int = None,
     ) -> None:
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
         )  # one track
-        track, _, _ = self.__start_track(new_mid, instrument)
+        track = self.__start_track(new_mid, instrument, tempo)
 
         time_in_bar = 0
         in_time_signature = self.mm.fixed_time_signature
@@ -435,6 +475,9 @@ class MusicGenerator:
                 True,
             )
             next_note, next_note_length, next_interval = next_tuple
+            next_note_length, next_interval = self.__flatten_length(
+                next_note_length, lengths_flatten_factor, True
+            ), self.__flatten_length(next_interval, lengths_flatten_factor, False)
 
             if in_time_signature:
                 if (
@@ -511,11 +554,13 @@ class MusicGenerator:
         with_octave: bool = True,
         only_high_notes: bool = False,
         first_note: str = None,
+        tempo: int = None,
+        lengths_flatten_factor: int = None,
     ) -> None:
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
         )  # one track
-        track, _, _ = self.__start_track(new_mid, instrument)
+        track = self.__start_track(new_mid, instrument, tempo)
 
         in_time_signature = self.mm.fixed_time_signature
         if in_time_signature:
@@ -550,6 +595,10 @@ class MusicGenerator:
                 False,
             )
             next_note, note_length, until_next_note_start = next_tuple
+            note_length, until_next_note_start = self.__flatten_length(
+                note_length, lengths_flatten_factor, True
+            ), self.__flatten_length(until_next_note_start, lengths_flatten_factor, False)
+
             if not with_octave:
                 # can return None
                 next_note = self.__change_note_octave(next_note, chord)
@@ -560,7 +609,7 @@ class MusicGenerator:
                 # start new chord
                 until_next_note_start = utils.UNTIL_NEXT_CHORD * note_length
                 next_note = next_tuple[0]
-                
+
             offset = 0
             if in_time_signature:
                 time_in_strong_beat = total_time % strong_beat_length
@@ -623,16 +672,19 @@ class MusicGenerator:
         new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
         self.__print_track(output_file)
 
+    # TODO: UPDATE!
     def generate_music_from_file_nanogpt(
         self,
         input_filepath: str,
         output_file: str,
         instrument: int,
+        tempo: int | None,
+        lengths_flatten_factor: int | None,
     ) -> None:
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
         )  # one track
-        track, tempo, key = self.__start_track(new_mid, instrument)
+        track = self.__start_track(new_mid, instrument, tempo)
 
         # for generated music's length purpose
         bar_length = utils.DEFAULT_BEATS_PER_BAR * new_mid.ticks_per_beat
@@ -683,32 +735,28 @@ if n < 2:
     raise ValueError("n must be >= 2!")
 
 # single file
-pathname = "toto-africa.mid"
-mm = MarkovModel(
-    n=n,
-    dir=False,
-    pathname=pathname,
-    merge_tracks=True,
-    ignore_bass=False,
-    # key="C",
-    # tempo=70,
-    tempo_flatten=2,
-    time_signature="4/4",
-)
-
-# or dirname - e.g. -d or --dir flag
-# pathname = "seablue"
+# pathname = "toto-africa.mid"
 # mm = MarkovModel(
 #     n=n,
-#     dir=True,
+#     dir=False,
 #     pathname=pathname,
 #     merge_tracks=True,
-#     ignore_bass=True,
-#     key="Cm",
-#     tempo=80,
-#     tempo_flatten=2,
-#     time_signature="4/4",
+#     ignore_bass=False,
+#     # key="C",
+#     # time_signature="3/4"
 # )
+
+# or dirname - e.g. -d or --dir flag
+pathname = "chopin"
+mm = MarkovModel(
+    n=n,
+    dir=True,
+    pathname=pathname,
+    merge_tracks=True,
+    ignore_bass=True,
+    key="Gm",
+    time_signature="6/8"
+)
 
 if mm.processed_mids == 0:
     raise ValueError("Couldn't process any mids! Try turning off key signature.")
@@ -727,16 +775,19 @@ if __name__ == "__main__":
         with_octave=True,
         only_high_notes=False,
         # first_note="D",
-        in_time_signature=True,
+        # tempo=70,
+        # lengths_flatten_factor=2,
     )
 
     generator.generate_music_with_tuple_ngrams(
         output_file="test2.mid",
         bars=40,
         instrument=0,
-        with_octave=False,
+        with_octave=True,
         only_high_notes=False,
-        # first_note="C",
+        first_note="G",
+        tempo=80,
+        # lengths_flatten_factor=2,
     )
 
     # DIFFERENT SAMPLING METHODS
