@@ -15,40 +15,30 @@ class MarkovModel:
         ignore_bass: bool,
         key: str = None,
         tempo: int = None,
-        extra_tempo_flatten: bool = False,
+        tempo_flatten: int = None,
         time_signature: str = None,
     ) -> None:
         self.n = n  # n-grams
 
-        # NOTES
-        # n-grams
-        self.note_ngrams = {}  # numbers -> how many
-        self.note_ngrams_without_octaves = {}  # strings -> how many
-        # n-1-grams
-        self.note_nminus1grams = {}  # numbers -> how many
-        self.note_nminus1grams_without_octaves = {}  # strings -> how many
-
-        # NOTE LENGTHS AND INTERVALS
-        self.note_length_counts = {}
-        self.interval_counts = {}
-
         # TUPLES (NOTE, NOTE LENGTH, TIME UNTIL NEXT NOTE START) - MELODY WITH HARMONY
-        self.tuple_ngrams = {}
-        self.tuple_ngrams_without_octaves = {}
-        self.tuple_nminus1grams = {}
-        self.tuple_nminus1grams_without_octaves = {}
+        self.tuple_ngrams = dict()
+        self.tuple_ngrams_without_octaves = dict()
+        self.tuple_nminus1grams = dict()
+        self.tuple_nminus1grams_without_octaves = dict()
 
         # TUPLES (NOTE, NOTE LENGTH, INTERVAL) - MELODY
-        self.melody_ngrams = {}
-        self.melody_ngrams_without_octaves = {}
-        self.melody_nminus1grams = {}
-        self.melody_nminus1grams_without_octaves = {}
+        self.melody_ngrams = dict()
+        self.melody_ngrams_without_octaves = dict()
+        self.melody_nminus1grams = dict()
+        self.melody_nminus1grams_without_octaves = dict()
 
         # main is currently first, maybe it should be the longest/most often among mid files?
         # if stays 0, will be set default later in music generation
+        self.fixed_time_signature = False
         self.__current_beats_per_bar, self.main_beats_per_bar = 0, utils.DEFAULT_BEATS_PER_BAR
         self.__current_beat_value, self.main_beat_value = 0, utils.DEFAULT_BEAT_VALUE
         if time_signature:
+            self.fixed_time_signature = True
             self.main_beats_per_bar, self.main_beat_value = map(int, time_signature.split("/"))
 
         # but main_tempo is average tempo
@@ -63,26 +53,33 @@ class MarkovModel:
         if tempo:
             self.fixed_tempo = True
             self.main_tempo = bpm2tempo(tempo)
+        if tempo_flatten is not None:
             # tempo flattenization/normalization
-            self.shortest_note = utils.SHORTEST_NOTE // 2
-        if extra_tempo_flatten:
-            self.shortest_note = utils.SHORTEST_NOTE // 4
+            self.shortest_note = utils.SHORTEST_NOTE // tempo_flatten
 
-        # default for beat=quarter note, changed in process_midi if beat value is different
+        # default: 32nd note; 16th or 8th note for flattened
         self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // (
-            self.shortest_note // self.main_beat_value
+            self.shortest_note // utils.DEFAULT_BEAT_VALUE
+            # self.shortest_note // self.main_beat_value # ??
         )
 
         self.max_length = (
             utils.LONGEST_IN_BARS
             * self.main_beats_per_bar
-            * utils.DEFAULT_TICKS_PER_BEAT
+            * (utils.DEFAULT_TICKS_PER_BEAT // (self.main_beat_value // 4))
+            # * utils.DEFAULT_TICKS_PER_BEAT # ??
         )
+
+        if self.fixed_time_signature:
+            if self.main_beats_per_bar in [2, 3, 4]:
+                self.used_note_lengths = list(map(lambda l: utils.TICKS_PER_32NOTE * l, utils.NOTE_LENGTHS_SIMPLE_TIME))
+            else: 
+                self.used_note_lengths = list(map(lambda l: utils.TICKS_PER_32NOTE * l, utils.NOTE_LENGTHS_COMPOUND_TIME))
 
         # given or None (don't force any specific key)
         self.main_key = key
         self.__current_key = None
-        self.__keys = []
+        self.__keys = list()
 
         self.path = os.path.join(os.getcwd(), pathname)  # CWD
         # self.path = os.path.join(os.path.dirname(__file__), pathname) # directory of markov.py
@@ -95,7 +92,7 @@ class MarkovModel:
             "w",
         )
 
-        self.mids = []
+        self.mids = list()
         self.processed_mids = 0
 
         self.__collect_mid_files(dir)
@@ -137,6 +134,12 @@ class MarkovModel:
             round_fun(length * ticks_per_beat_factor / self.length_precision)
             * self.length_precision
         )
+        if self.fixed_time_signature:
+            for len_idx in range(1, len(self.used_note_lengths)):
+                if self.used_note_lengths[len_idx - 1] < rounded_length <= self.used_note_lengths[len_idx]:
+                    rounded_length = self.used_note_lengths[len_idx]
+                    break
+
         if rounded_length > self.max_length:
             rounded_length = self.max_length
         return rounded_length
@@ -146,10 +149,10 @@ class MarkovModel:
     ) -> None:
         if note_lengths:
             note_lengths.sort()
-            notes = list(map(lambda tpl: tpl[1], note_lengths))
+            notes = list(map(lambda tpl: tpl[2], note_lengths))
             # print(f"Track {track_idx} notes: \n{notes}")
 
-            time_between_note_starts = []
+            time_between_note_starts = list()
             for idx in range(1, len(note_lengths)):
                 rounded_time = self.__round_time(
                     note_lengths[idx][0] - note_lengths[idx - 1][0],
@@ -177,13 +180,6 @@ class MarkovModel:
             all_tuples = list(
                 zip(notes, rounded_note_lengths, time_between_note_starts)
             )
-
-            # for generate_in_time_signature
-            self.__count_track_note_ngrams(melody_notes)
-            self.__count_track_length_occurences(
-                melody_note_lengths, self.note_length_counts
-            )
-            self.__count_track_length_occurences(melody_intervals, self.interval_counts)
 
             # for generate_in_melody/tuple_ngrams
             self.__count_track_tuple_ngrams(
@@ -241,12 +237,12 @@ class MarkovModel:
         # to count lengths properly
         ticks_per_beat_factor = utils.DEFAULT_TICKS_PER_BEAT / mid.ticks_per_beat
         # list of pairs: (start in total ticks, key)
-        self.__keys = []
+        self.__keys = list()
         # dict: channel -> instrument
         instruments = {ch: 0 for ch in range(16)}
 
         if merge_tracks:
-            all_note_lengths = []
+            all_note_lengths = list()
             merged_tracks = 0
 
         if self.main_key:
@@ -257,8 +253,8 @@ class MarkovModel:
             key_idx = 0
 
             # list of tuples (start of note, note length, note) to sort lexycographically
-            note_lengths = []
-            currently_playing_notes_starts = {}
+            note_lengths = list()
+            currently_playing_notes_starts = dict()
 
             print(f"Track {track_idx}: {track.name}")
             for msg in track:
@@ -304,7 +300,7 @@ class MarkovModel:
                                     note = utils.transpose(
                                         note, self.__current_key, self.main_key
                                     )
-                                note_lengths.append((start, note, total_time - start))
+                                note_lengths.append((start, total_time - start, note))
                     elif msg.type == "program_change":
                         instruments[msg.channel] = msg.program
                         print(msg.program)
@@ -359,18 +355,6 @@ class MarkovModel:
         if msg.type == "time_signature":
             self.__current_beats_per_bar = msg.numerator
             self.__current_beat_value = msg.denominator
-            # if self.main_beats_per_bar == 0 and self.main_beat_value == 0:
-                # self.main_beats_per_bar = self.__current_beats_per_bar
-                # self.main_beat_value = self.__current_beat_value
-                # good?
-                # self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // (
-                #     utils.SHORTEST_NOTE // self.main_beat_value
-                # )
-                # self.max_length = (
-                #     utils.LONGEST_IN_BARS
-                #     * self.main_beats_per_bar
-                #     * utils.DEFAULT_TICKS_PER_BEAT
-                # )
             print(
                 f"Time signature: {self.__current_beats_per_bar}/{self.__current_beat_value}"
             )
@@ -385,14 +369,14 @@ class MarkovModel:
 
         end_time = (
             note_lengths[len(note_lengths) - 1][0]
-            + note_lengths[len(note_lengths) - 1][2]
+            + note_lengths[len(note_lengths) - 1][1]
         )
         note_lengths_dict = {nl: True for nl in note_lengths}
 
         # in each box we have notes which play in that time frame of length_precision:
         # (note, start, note_length)
-        boxes = [[] for i in range(end_time // self.length_precision + 1)]
-        for start, note, note_length in note_lengths:
+        boxes = [list() for i in range(end_time // self.length_precision + 1)]
+        for start, note_length, note in note_lengths:
             for box_idx in range(
                 start // self.length_precision,
                 math.ceil((start + note_length) / self.length_precision),
@@ -409,27 +393,27 @@ class MarkovModel:
                 _, hstart, hnote_length = boxes[box_idx][len(boxes[box_idx]) - 1]
                 while len(boxes[box_idx]) > 1:
                     note, start, note_length = boxes[box_idx][0]
-                    if note_lengths_dict.get((start, note, note_length)):
+                    if note_lengths_dict.get((start, note_length, note)):
                         tolerance = self.length_precision // 3
                         if (
                             hstart > start and start + note_length - tolerance > hstart
                         ) or (
                             start > hstart and hstart + hnote_length - tolerance > start
                         ):
-                            del note_lengths_dict[(start, note, note_length)]
+                            del note_lengths_dict[(start, note_length, note)]
                     boxes[box_idx].pop(0)
 
         full_melody_note_lengths = sorted(list(note_lengths_dict.keys()))
-        melody_notes = list(map(lambda tpl: tpl[1], full_melody_note_lengths))
+        melody_notes = list(map(lambda tpl: tpl[2], full_melody_note_lengths))
         # round up - I don't want 0 length note lengths
         melody_note_lengths = list(
             map(
-                lambda tpl: self.__round_time(tpl[2], ticks_per_beat_factor, True),
+                lambda tpl: self.__round_time(tpl[1], ticks_per_beat_factor, True),
                 full_melody_note_lengths,
             )
         )
 
-        melody_intervals = []
+        melody_intervals = list()
         for idx in range(1, len(full_melody_note_lengths)):
             rounded_interval = (
                 self.__round_time(
@@ -453,36 +437,6 @@ class MarkovModel:
             ngrams[counted_ngram] += 1
         else:
             ngrams[counted_ngram] = 1
-
-    def __count_track_note_ngrams(self, notes: list[int]) -> None:
-        for note_idx in range(len(notes) - self.n + 2):
-            # count n-1-gram
-            nminus1gram = tuple(
-                [notes[note_idx + offset] for offset in range(self.n - 1)]
-            )
-            nminus1gram_without_octaves = tuple(
-                [
-                    utils.get_note_name(notes[note_idx + offset])
-                    for offset in range(self.n - 1)
-                ]
-            )
-
-            self.__count_ngram(self.note_nminus1grams, nminus1gram)
-            self.__count_ngram(
-                self.note_nminus1grams_without_octaves, nminus1gram_without_octaves
-            )
-
-            # not last n-1 notes -> count n-gram
-            if note_idx != len(notes) - self.n + 1:
-                ngram = nminus1gram + (notes[note_idx + self.n - 1],)
-                ngram_without_octaves = nminus1gram_without_octaves + (
-                    utils.get_note_name(notes[note_idx + self.n - 1]),
-                )
-
-                self.__count_ngram(self.note_ngrams, ngram)
-                self.__count_ngram(
-                    self.note_ngrams_without_octaves, ngram_without_octaves
-                )
 
     def __count_track_tuple_ngrams(
         self,
@@ -522,14 +476,3 @@ class MarkovModel:
 
                 self.__count_ngram(ngrams, ngram)
                 self.__count_ngram(ngrams_without_octaves, ngram_without_octaves)
-
-    def __count_track_length_occurences(
-        self, lengths: list[int], counts: list[int]
-    ) -> None:
-        max_length = max(lengths)
-
-        for length in range(0, max_length + 1, self.length_precision):
-            if counts.get(length) is None:
-                counts[length] = lengths.count(length)
-            else:
-                counts[length] += lengths.count(length)

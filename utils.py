@@ -1,4 +1,5 @@
 DEFAULT_TICKS_PER_BEAT = 480
+TICKS_PER_32NOTE = DEFAULT_TICKS_PER_BEAT // 8
 DEFAULT_BEATS_PER_BAR = 4
 DEFAULT_BEAT_VALUE = 4
 DEFAULT_TEMPO = 500000
@@ -6,7 +7,7 @@ DEFAULT_TEMPO = 500000
 SHORTEST_NOTE = 32
 LONGEST_IN_BARS = 1
 
-MAX_CHORD_SIZE = 4
+MAX_CHORD_SIZE = 3
 UNTIL_NEXT_CHORD = 1
 
 MAX_TRACKS_TO_MERGE = 10
@@ -23,7 +24,7 @@ OCTAVES = (HIGHEST_USED_OCTAVE - LOWEST_USED_OCTAVE) + 1
 
 ALL_NOTES_COUNT = 128
 NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-KEY_SIGNATURES = [  # from mido docs
+KEY_SIGNATURES = [  # from mido docs - necessary?
     "A",
     "A#m",
     "Ab",
@@ -47,7 +48,7 @@ KEY_SIGNATURES = [  # from mido docs
     "Ebm",
     "Em",
     "F",
-    "F#",
+    "F#",   
     "F#m",
     "Fm",
     "G",
@@ -83,7 +84,7 @@ DISTINCT_TONIC_KEY_SIGNATURES = [
     "Gm",
 ]
 
-# arbitrarily chosen note lengths to use - multipliers of 32nd note length
+# arbitrarily chosen note lengths to use in time signature - multipliers of 32nd note length
 # 32nd, 16th, 16., 8th, 8., 4th, 4., 2nd, 2., whole note
 # . - dotted note (e.g. 8. = 1.5 * 8th)
 NOTE_LENGTHS_SIMPLE_TIME = [1, 2, 4, 8, 16, 32]
@@ -148,7 +149,7 @@ def get_tonic_note(key: str) -> str:
 
 
 def get_key_notes(key: str) -> str:
-    key_notes = []
+    key_notes = list()
 
     minor = is_minor(key)
     tonic_note = get_tonic_note(key)
@@ -211,7 +212,7 @@ def infer_key(all_notes: list[str]) -> str:
         )
     )
 
-    key_candidates = []
+    key_candidates = list()
     while not key_candidates and notes:
         for key in DISTINCT_TONIC_KEY_SIGNATURES:
             key_notes = get_key_notes(key)
