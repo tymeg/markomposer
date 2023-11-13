@@ -219,6 +219,7 @@ class MusicGenerator:
         only_high_notes: bool,
         melody: bool,
         start_of_bar: bool,
+        start_with_chord: bool = False,
         first_note: int | str = None,
     ) -> tuple[tuple[tuple[int | str]], list[tuple[int | str]]] | None:
         if with_octave:
@@ -246,6 +247,10 @@ class MusicGenerator:
         if start_of_bar:
             nminus1grams_keys = list(
                 filter(lambda nminus1gram: nminus1gram in starts_of_bar, nminus1grams_keys)
+            )
+        if start_with_chord:
+            nminus1grams_keys = list(
+                filter(lambda nminus1gram: nminus1gram[0][2] == 0, nminus1grams_keys)
             )
 
         if first_note is not None:
@@ -541,14 +546,17 @@ class MusicGenerator:
                     time_in_strong_beat + next_note_length
                 ) % strong_beat_length
 
-                time_in_strong_beat += next_interval
-                if (
-                    time_in_strong_beat > strong_beat_length
-                    and time_in_strong_beat % strong_beat_length != 0
-                    # and next_interval <= strong_beat_length
-                ):
-                    next_interval -= time_in_strong_beat - strong_beat_length
-                    time_in_strong_beat = 0
+                if time_in_strong_beat == 0:
+                    next_interval = 0
+                else:
+                    time_in_strong_beat += next_interval
+                    if (
+                        time_in_strong_beat > strong_beat_length
+                        and time_in_strong_beat % strong_beat_length != 0
+                        # and next_interval <= strong_beat_length
+                    ):
+                        next_interval -= time_in_strong_beat - strong_beat_length
+                        time_in_strong_beat = 0
 
             track.append(Message("note_on", note=next_note, time=int(prev_interval)))
             track.append(
@@ -599,6 +607,7 @@ class MusicGenerator:
         first_note: str = None,
         tempo: int = None,
         lengths_flatten_factor: int = None,
+        start_with_chord: bool = False,
     ) -> None:
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
@@ -617,7 +626,7 @@ class MusicGenerator:
             bar_length = utils.DEFAULT_BEATS_PER_BAR * new_mid.ticks_per_beat
 
         ret = self.__first_nminus1_tuples(
-            with_octave, only_high_notes, False, True, first_note
+            with_octave, only_high_notes, False, True, start_with_chord, first_note
         )
         if ret is None:
             raise ValueError(f"Can't start with note {first_note}!")
@@ -837,28 +846,28 @@ if n < 2:
     raise ValueError("n must be >= 2!")
 
 # single file
-# pathname = "toto-africa.mid"
+pathname = "haddaway.mid"
+mm = MarkovModel(
+    n=n,
+    dir=False,
+    pathname=pathname,
+    merge_tracks=True,
+    ignore_bass=True,
+    # key="C",
+    time_signature="4/4"
+)
+
+# or dirname - e.g. -d or --dir flag
+# pathname = "mozart"
 # mm = MarkovModel(
 #     n=n,
-#     dir=False,
+#     dir=True,
 #     pathname=pathname,
 #     merge_tracks=True,
 #     ignore_bass=False,
-#     # key="C",
-#     # time_signature="3/4"
+#     key="D",
+#     time_signature="4/4",
 # )
-
-# or dirname - e.g. -d or --dir flag
-pathname = "totoway"
-mm = MarkovModel(
-    n=n,
-    dir=True,
-    pathname=pathname,
-    merge_tracks=True,
-    ignore_bass=False,
-    key="C",
-    time_signature="4/4",
-)
 
 if mm.processed_mids == 0:
     raise ValueError("Couldn't process any mids! Try turning off key signature.")
@@ -890,6 +899,7 @@ if __name__ == "__main__":
         # first_note="G",
         # tempo=80,
         lengths_flatten_factor=2,
+        # start_with_chord=True,
     )
 
     # DIFFERENT SAMPLING METHODS
