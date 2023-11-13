@@ -15,6 +15,7 @@ class MarkovModel:
         ignore_bass: bool,
         key: str = None,
         time_signature: str = None,
+        lengths_flatten_factor: int = None,
     ) -> None:
         self.n = n  # n-grams
 
@@ -56,11 +57,15 @@ class MarkovModel:
             self.__tempo_length,
         ) = (0, 0, 0, 0)
 
+        self.__shortest_note = utils.SHORTEST_NOTE
+        if lengths_flatten_factor is not None:
+            self.__shortest_note //= lengths_flatten_factor
+
         # default: 32nd note
         self.length_precision = utils.DEFAULT_TICKS_PER_BEAT // (
-            utils.SHORTEST_NOTE
+            self.__shortest_note
             // utils.DEFAULT_BEAT_VALUE
-            # utils.SHORTEST_NOTE // self.main_beat_value # ??
+            # self.__shortest_note // self.main_beat_value # ??
         )
 
         self.max_length = (
@@ -69,6 +74,21 @@ class MarkovModel:
             * (utils.DEFAULT_TICKS_PER_BEAT // (self.main_beat_value // 4))
             # * utils.DEFAULT_TICKS_PER_BEAT # ??
         )
+
+        if self.main_beats_per_bar in [2, 3, 4]:
+            self.used_note_lengths = list(
+                map(
+                    lambda l: utils.TICKS_PER_32NOTE * l,
+                    utils.NOTE_LENGTHS_SIMPLE_TIME,
+                )
+            )
+        else:
+            self.used_note_lengths = list(
+                map(
+                    lambda l: utils.TICKS_PER_32NOTE * l,
+                    utils.NOTE_LENGTHS_COMPOUND_TIME,
+                )
+            )
 
         # given or None (don't force any specific key)
         self.main_key = key
@@ -123,11 +143,22 @@ class MarkovModel:
 
     def __round_time(self, length: int, ticks_per_beat_factor: float, up: bool) -> int:
         round_fun = math.ceil if up else math.floor
-
         rounded_length = (
             round_fun(length * ticks_per_beat_factor / self.length_precision)
             * self.length_precision
         )
+
+        if self.fixed_time_signature:
+            # flatten lengths in model
+            if self.__shortest_note < utils.SHORTEST_NOTE:
+                for len_idx in range(1, len(self.used_note_lengths)):
+                    if (
+                        self.used_note_lengths[len_idx - 1]
+                        < length
+                        <= self.used_note_lengths[len_idx]
+                    ):
+                        length = self.used_note_lengths[len_idx]
+                        break
 
         if rounded_length > self.max_length:
             rounded_length = self.max_length
@@ -269,25 +300,19 @@ class MarkovModel:
 
                 if msg.is_meta:
                     self.__read_meta_message(msg, total_time)
-                elif (  # ignore drums and percussive instruments/sound effects
-                    msg.channel != utils.DRUM_CHANNEL
-                    and instruments[msg.channel] < utils.PERCUSSIVE_INSTRUMENTS
-                ):
-                    if msg.type == "note_on" and msg.velocity > 0:
-                        if (
-                            not ignore_bass
-                            or instruments[msg.channel] not in utils.BASS
-                        ):
+                elif msg.type == "note_on" or msg.type == "note_off": 
+                    if (  # always ignore drums and percussive instruments/sound effects
+                        msg.channel != utils.DRUM_CHANNEL
+                        and instruments[msg.channel] < utils.PERCUSSIVE_INSTRUMENTS
+                        and (not ignore_bass or instruments[msg.channel] not in utils.BASS)
+                    ):
+                        if msg.type == "note_on" and msg.velocity > 0:
                             currently_playing_notes_starts[msg.note] = total_time
                             # print(utils.get_note_name_with_octave(msg.note))
                             # print(total_time)
-                    elif (
-                        msg.type == "note_on" and msg.velocity == 0
-                    ) or msg.type == "note_off":
-                        if (
-                            not ignore_bass
-                            or instruments[msg.channel] not in utils.BASS
-                        ):
+                        elif (
+                            msg.type == "note_on" and msg.velocity == 0
+                        ) or msg.type == "note_off":
                             if currently_playing_notes_starts.get(msg.note):
                                 start = currently_playing_notes_starts[msg.note]
                                 note = msg.note
@@ -317,9 +342,9 @@ class MarkovModel:
                                 note_lengths.append(
                                     (start, total_time - start, note, start_of_bar)
                                 )
-                    elif msg.type == "program_change":
-                        instruments[msg.channel] = msg.program
-                        print(msg.program)
+                elif msg.type == "program_change":
+                    instruments[msg.channel] = msg.program
+                    print(msg.program)
 
             if note_lengths:
                 if merge_tracks:
