@@ -49,7 +49,7 @@ class MarkovModel:
                 int, time_signature.split("/")
             )
 
-        # but main_tempo is average tempo
+        # main_tempo is average tempo
         (
             self.__current_tempo,
             self.main_tempo,
@@ -68,11 +68,11 @@ class MarkovModel:
             # self.__shortest_note // self.main_beat_value # ??
         )
 
-        self.max_length = (
-            utils.LONGEST_IN_BARS
-            * self.main_beats_per_bar
-            * (utils.DEFAULT_TICKS_PER_BEAT // (self.main_beat_value // 4))
-            # * utils.DEFAULT_TICKS_PER_BEAT # ??
+        # whole note or bar length, if it's shorter than whole note
+        self.max_length = min(
+            utils.DEFAULT_TICKS_PER_BEAT * 4,
+            self.main_beats_per_bar
+            * (utils.DEFAULT_TICKS_PER_BEAT // (self.main_beat_value // 4)),
         )
 
         if self.main_beats_per_bar in [2, 3, 4]:
@@ -157,7 +157,7 @@ class MarkovModel:
                         < length
                         <= self.used_note_lengths[len_idx]
                     ):
-                        length = self.used_note_lengths[len_idx]
+                        rounded_length = self.used_note_lengths[len_idx]
                         break
 
         if rounded_length > self.max_length:
@@ -300,11 +300,14 @@ class MarkovModel:
 
                 if msg.is_meta:
                     self.__read_meta_message(msg, total_time)
-                elif msg.type == "note_on" or msg.type == "note_off": 
+                elif msg.type == "note_on" or msg.type == "note_off":
                     if (  # always ignore drums and percussive instruments/sound effects
                         msg.channel != utils.DRUM_CHANNEL
                         and instruments[msg.channel] < utils.PERCUSSIVE_INSTRUMENTS
-                        and (not ignore_bass or instruments[msg.channel] not in utils.BASS)
+                        and (
+                            not ignore_bass
+                            or instruments[msg.channel] not in utils.BASS
+                        )
                     ):
                         if msg.type == "note_on" and msg.velocity > 0:
                             currently_playing_notes_starts[msg.note] = total_time

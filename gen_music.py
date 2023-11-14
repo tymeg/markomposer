@@ -420,18 +420,17 @@ class MusicGenerator:
     # ========================= MAIN GENERATING METHODS =================================================
     def __calculate_strong_beat_length(
         self, bar_length: int, beats_per_bar: int
-    ) -> tuple[int, bool]:
+    ) -> int:
         strong_beat_length = bar_length
-        simple_time = beats_per_bar in [2, 3, 4]
         # simple time signatures
         if beats_per_bar in [2, 4]:
-            strong_beat_length //= 2  # beats_per_bar / 2
+            strong_beat_length //= beats_per_bar // 2
         # compound time signatures
         elif beats_per_bar in [6, 9, 12]:
-            strong_beat_length //= beats_per_bar / 3
-        # what about irregular time signatures?
+            strong_beat_length //= beats_per_bar // 3
+        # what about irregular time signatures? 5/x, 7/x
 
-        return strong_beat_length, simple_time
+        return strong_beat_length
 
     def __flatten_length(
         self, length: int, lengths_flatten_factor: int, up: bool
@@ -464,6 +463,7 @@ class MusicGenerator:
         first_note: str = None,
         tempo: int = None,
         lengths_flatten_factor: int = None,
+        strict_time_signature: bool = False,
     ) -> None:
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
@@ -473,9 +473,9 @@ class MusicGenerator:
         time_in_bar = 0
         in_time_signature = self.mm.fixed_time_signature
         if in_time_signature:
-            beats_per_bar, _ = self.__set_time_signature(track)
-            bar_length = beats_per_bar * new_mid.ticks_per_beat
-            strong_beat_length, _ = self.__calculate_strong_beat_length(
+            beats_per_bar, beat_value = self.__set_time_signature(track)
+            bar_length = beats_per_bar * (new_mid.ticks_per_beat // (beat_value // 4))
+            strong_beat_length = self.__calculate_strong_beat_length(
                 bar_length, beats_per_bar
             )
             time_in_strong_beat = 0
@@ -494,7 +494,7 @@ class MusicGenerator:
         prev_interval = 0
         bar = 0
         prev_note = -1
-        while bar < bars:
+        while True:
             next_tuple, prev_tuples = self.__pick_tuple(
                 first_tuples,
                 prev_tuples,
@@ -519,9 +519,9 @@ class MusicGenerator:
                     # and (time_in_strong_beat + next_note_length) % strong_beat_length != 0
                 ):
                     offset = (strong_beat_length - time_in_strong_beat) % strong_beat_length
-                    # good or too strict?
-                    # if time_in_bar + next_note_length > bar_length:
-                    #     offset = bar_length - time_in_bar
+                    if strict_time_signature:
+                        if time_in_bar + offset + next_note_length > bar_length:
+                            offset = bar_length - time_in_bar
                     prev_interval += offset
                     time_in_strong_beat = 0
                     bar += (time_in_bar + offset) // bar_length
@@ -542,6 +542,8 @@ class MusicGenerator:
                         next_interval -= time_in_strong_beat - strong_beat_length
                         time_in_strong_beat = 0
 
+            if bar >= bars:
+                break
             track.append(Message("note_on", note=next_note, time=int(prev_interval)))
             track.append(
                 Message("note_off", note=next_note, time=int(next_note_length))
@@ -592,6 +594,7 @@ class MusicGenerator:
         tempo: int = None,
         lengths_flatten_factor: int = None,
         start_with_chord: bool = False,
+        strict_time_signature: bool = False,
     ) -> None:
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
@@ -600,9 +603,9 @@ class MusicGenerator:
 
         in_time_signature = self.mm.fixed_time_signature
         if in_time_signature:
-            beats_per_bar, _ = self.__set_time_signature(track)
-            bar_length = beats_per_bar * new_mid.ticks_per_beat
-            strong_beat_length, _ = self.__calculate_strong_beat_length(
+            beats_per_bar, beat_value = self.__set_time_signature(track)
+            bar_length = beats_per_bar * (new_mid.ticks_per_beat // (beat_value // 4))
+            strong_beat_length = self.__calculate_strong_beat_length(
                 bar_length, beats_per_bar
             )
         else:
@@ -663,26 +666,28 @@ class MusicGenerator:
                     # and (time_in_strong_beat + next_note_length) % strong_beat_length != 0
                 ):
                     offset = (strong_beat_length - time_in_strong_beat) % strong_beat_length
-                    # good or too strict?
-                    # if time_in_bar + note_length > bar_length:
-                    #     offset = bar_length - time_in_bar
+                    if strict_time_signature:
+                        if time_in_bar + offset + note_length > bar_length:
+                            offset = bar_length - time_in_bar
                     time_in_strong_beat = 0
 
                 time_in_strong_beat += until_next_note_start
                 if (
                     time_in_strong_beat > strong_beat_length
                     and time_in_strong_beat % strong_beat_length != 0
-                    # and next_interval <= strong_beat_length
+                    # and until_next_note_start <= strong_beat_length
                 ):
                     until_next_note_start -= time_in_strong_beat - strong_beat_length
 
             total_time += offset
             if total_time // bar_length >= bars:
                 break
+            prev_note = next_note
             if next_note not in chord:
                 messages.append((total_time, next_note, True))
                 messages.append((total_time + note_length, next_note, False))
-            prev_note = next_note
+            else:
+                continue
 
             end_of_chord = False
             if until_next_note_start == 0:
@@ -705,6 +710,8 @@ class MusicGenerator:
                         offset = chord_start_time - start_time
                     else:
                         messages[msg_idx] = (start_time + offset, note, note_on)
+                total_time = chord_start_time
+                until_next_note_start -= offset
 
             total_time += until_next_note_start
 
@@ -720,6 +727,7 @@ class MusicGenerator:
         instrument: int,
         tempo: int | None,
         lengths_flatten_factor: int | None,
+        strict_time_signature: bool = False,
     ) -> None:
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
@@ -728,9 +736,9 @@ class MusicGenerator:
 
         in_time_signature = self.mm.fixed_time_signature
         if in_time_signature:
-            beats_per_bar, _ = self.__set_time_signature(track)
-            bar_length = beats_per_bar * new_mid.ticks_per_beat
-            strong_beat_length, _ = self.__calculate_strong_beat_length(
+            beats_per_bar, beat_value = self.__set_time_signature(track)
+            bar_length = beats_per_bar * (new_mid.ticks_per_beat // (beat_value // 4))
+            strong_beat_length = self.__calculate_strong_beat_length(
                 bar_length, beats_per_bar
             )
         else:
@@ -778,9 +786,9 @@ class MusicGenerator:
                     # and (time_in_strong_beat + next_note_length) % strong_beat_length != 0
                 ):
                     offset = (strong_beat_length - time_in_strong_beat) % strong_beat_length
-                    # good or too strict?
-                    # if time_in_bar + note_length > bar_length:
-                    #     offset = bar_length - time_in_bar
+                    if strict_time_signature:
+                        if time_in_bar + offset + note_length > bar_length:
+                            offset = bar_length - time_in_bar
                     time_in_strong_beat = 0
 
                 time_in_strong_beat += until_next_note_start
@@ -795,6 +803,8 @@ class MusicGenerator:
             if next_note not in chord:
                 messages.append((total_time, next_note, True))
                 messages.append((total_time + note_length, next_note, False))
+            else:
+                continue
 
             end_of_chord = False
             if until_next_note_start == 0:
@@ -817,6 +827,8 @@ class MusicGenerator:
                         offset = chord_start_time - start_time
                     else:
                         messages[msg_idx] = (start_time + offset, note, note_on)
+                total_time = chord_start_time
+                until_next_note_start -= offset
 
             total_time += until_next_note_start
 
@@ -844,15 +856,15 @@ if n < 2:
 # )
 
 # or dirname - e.g. -d or --dir flag
-pathname = "mozart"
+pathname = "careless_rickroll"
 mm = MarkovModel(
     n=n,
     dir=True,
     pathname=pathname,
     merge_tracks=True,
-    ignore_bass=True,
+    ignore_bass=False,
     key="C",
-    # time_signature="4/4",
+    time_signature="4/4",
     lengths_flatten_factor=2,
 )
 
@@ -874,7 +886,7 @@ if __name__ == "__main__":
     #     only_high_notes=False,
     #     # first_note="D",
     #     # tempo=70,
-    #     lengths_flatten_factor=2,
+    #     # lengths_flatten_factor=2,
     # )
 
     generator.generate_music_with_tuple_ngrams(
@@ -884,8 +896,8 @@ if __name__ == "__main__":
         with_octave=True,
         only_high_notes=False,
         # first_note="G",
-        tempo=100,
-        # lengths_flatten_factor=4,
+        # tempo=100,
+        # lengths_flatten_factor=2,
         # start_with_chord=True,
     )
 
@@ -909,15 +921,15 @@ if __name__ == "__main__":
     #     first_note="D#",
     # )
 
-    generator_k3.generate_music_with_tuple_ngrams(
-        output_file="test2_k3.mid",
-        bars=40,
-        instrument=0,
-        with_octave=True,
-        only_high_notes=False,
-        # first_note="D",
-        # lengths_flatten_factor=2
-    )
+    # generator_k3.generate_music_with_tuple_ngrams(
+    #     output_file="test2_k3.mid",
+    #     bars=40,
+    #     instrument=0,
+    #     with_octave=True,
+    #     only_high_notes=False,
+    #     # first_note="D",
+    #     lengths_flatten_factor=2
+    # )
 
     generator_p80.generate_music_with_tuple_ngrams(
         output_file="test2_p80.mid",
