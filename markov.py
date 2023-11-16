@@ -19,21 +19,24 @@ class MarkovModel:
     ) -> None:
         self.n = n  # n-grams
 
-        # TUPLES (NOTE, NOTE LENGTH, TIME FROM START TO START OF NEXT, IF START OF BAR) - MELODY WITH HARMONY
+        # TUPLES (NOTE, NOTE LENGTH, TIME FROM START TO START OF NEXT) - MELODY WITH HARMONY
         self.tuple_ngrams = dict()
-        self.tuple_ngrams_without_octaves = dict()
         self.tuple_nminus1grams = dict()
+        # (NOTE, NOTE LENGTH, TIME FROM START TO START OF NEXT, IF NOTE PITCH GOES UP)
+        self.tuple_ngrams_without_octaves = dict()
         self.tuple_nminus1grams_without_octaves = dict()
 
         self.tuple_nminus1gram_starts_of_bar = set()
         self.tuple_nminus1gram_without_octaves_starts_of_bar = set()
 
-        # TUPLES (NOTE, NOTE LENGTH, TIME FROM END TO START OF NEXT, IF START OF BAR) - MELODY
+        # TUPLES (NOTE, NOTE LENGTH, TIME FROM END TO START OF NEXT) - MELODY
         self.melody_ngrams = dict()
-        self.melody_ngrams_without_octaves = dict()
         self.melody_nminus1grams = dict()
+        # (NOTE, NOTE LENGTH, TIME FROM END TO START OF NEXT, IF NOTE PITCH GOES UP)
+        self.melody_ngrams_without_octaves = dict()
         self.melody_nminus1grams_without_octaves = dict()
 
+        # nminus1grams which started some bar in input tracks
         self.melody_nminus1gram_starts_of_bar = set()
         self.melody_nminus1gram_without_octaves_starts_of_bar = set()
 
@@ -490,9 +493,9 @@ class MarkovModel:
         self,
         tuples: list[tuple[int]],
         ngrams: list[tuple[int]],
-        ngrams_without_octaves: list[tuple[str]],
+        ngrams_without_octaves: list[tuple[str, int, bool]],
         nminus1grams: list[tuple[int]],
-        nminus1grams_without_octaves: list[tuple[str]],
+        nminus1grams_without_octaves: list[tuple[str, int, bool]],
         starts_of_bar: list[bool],
         nminus1gram_starts_of_bar: set[tuple[int]],
         nminus1gram_without_octaves_starts_of_bar: set[tuple[int]],
@@ -502,12 +505,24 @@ class MarkovModel:
             nminus1gram = tuple(
                 [tuples[note_idx + offset] for offset in range(self.n - 1)]
             )
-            nminus1gram_without_octaves = tuple(
-                map(
-                    lambda tpl: (utils.get_note_name(tpl[0]), tpl[1], tpl[2]),
-                    nminus1gram,
-                )
-            )
+            if note_idx > 0:
+                prev_note = tuples[note_idx - 1][0]
+            else:
+                prev_note = -1
+            nminus1gram_without_octaves = list()
+            for idx in range(len(nminus1gram)):
+                note, note_length, interval = nminus1gram[idx]
+                nminus1gram_without_octaves.append(
+                    (
+                        utils.get_note_name(note),
+                        note_length,
+                        interval,
+                        note > prev_note if note != prev_note else None,
+                    ) # None if same note
+                )  
+                prev_note = note
+            nminus1gram_without_octaves = tuple(nminus1gram_without_octaves)
+
             if starts_of_bar[note_idx]:
                 nminus1gram_starts_of_bar.add(nminus1gram)
                 nminus1gram_without_octaves_starts_of_bar.add(
@@ -527,6 +542,11 @@ class MarkovModel:
                         utils.get_note_name(tuples[note_idx + self.n - 1][0]),
                         tuples[note_idx + self.n - 1][1],
                         tuples[note_idx + self.n - 1][2],
+                        tuples[note_idx + self.n - 1][0]
+                        > tuples[note_idx + self.n - 2][0]
+                        if tuples[note_idx + self.n - 1][0]
+                        != tuples[note_idx + self.n - 2][0]
+                        else None,
                     ),
                 )
 

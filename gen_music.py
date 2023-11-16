@@ -94,7 +94,7 @@ class MusicGenerator:
 
     def __choose_next_tuple(
         self,
-        prev_tuples: tuple[tuple[int]],
+        prev_tuples: tuple[tuple[int] | tuple[int, bool]],
         with_octave: bool,
         only_high_notes: bool,
         melody: bool,
@@ -119,10 +119,11 @@ class MusicGenerator:
                 nminus1grams = self.mm.tuple_nminus1grams
         else:
             tuples = [
-                (i, j, k)
+                (i, j, k, l)
                 for i in utils.NOTES
                 for j in self.note_lengths_range
                 for k in self.until_next_note_range
+                for l in [True, False]
             ]  # notes as strings
             if melody:
                 ngrams = self.mm.melody_ngrams_without_octaves
@@ -162,9 +163,8 @@ class MusicGenerator:
         return first_note
 
     def __next_closest_note(
-        self, prev_note: int, note: str, only_high_notes: bool
+        self, prev_note: int, note: str, go_up: bool, only_high_notes: bool
     ) -> int:
-        # some randomness could be added - to not always take the closest note
         prev_note_octave = utils.get_note_octave(prev_note)
         possible_octaves = filter(
             lambda octave: octave <= utils.HIGHEST_USED_OCTAVE,
@@ -190,6 +190,18 @@ class MusicGenerator:
                 possible_notes,
             )
         )
+        if go_up is None:
+            return prev_note
+        elif go_up:
+            higher_notes = list(filter(lambda note: note > prev_note, possible_notes))
+            if higher_notes:
+                return min(higher_notes)
+        else:
+            lower_notes = list(filter(lambda note: note < prev_note, possible_notes))
+            if lower_notes:
+                return min(lower_notes)
+
+        # not possible to pick the note Markov's chain advised to pick
         min_abs = 12
         for note in possible_notes:
             if abs(note - prev_note) < min_abs:
@@ -361,7 +373,7 @@ class MusicGenerator:
                 )
             else:
                 next_tuple = (
-                    self.__next_closest_note(prev_note, next_tuple[0], only_high_notes),
+                    self.__next_closest_note(prev_note, next_tuple[0], next_tuple[3], only_high_notes),
                     next_tuple[1],
                     next_tuple[2],
                 )
@@ -725,8 +737,8 @@ class MusicGenerator:
         input_filepath: str,
         output_file: str,
         instrument: int,
-        tempo: int | None,
-        lengths_flatten_factor: int | None,
+        tempo: int = None,
+        lengths_flatten_factor: int = None,
         strict_time_signature: bool = False,
     ) -> None:
         new_mid = MidiFile(
@@ -839,7 +851,7 @@ class MusicGenerator:
 
 
 # parse arguments - will be expanded and moved to main file
-n = 3
+n = 5
 if n < 2:
     raise ValueError("n must be >= 2!")
 
@@ -856,14 +868,14 @@ if n < 2:
 # )
 
 # or dirname - e.g. -d or --dir flag
-pathname = "careless_rickroll"
+pathname = "mozart"
 mm = MarkovModel(
     n=n,
     dir=True,
     pathname=pathname,
     merge_tracks=True,
     ignore_bass=False,
-    key="C",
+    key="Gm",
     time_signature="4/4",
     lengths_flatten_factor=2,
 )
@@ -878,16 +890,16 @@ generator_k3 = MusicGenerator(mm, k=3)
 generator_p80 = MusicGenerator(mm, p=0.8, weighted_random_start=True)
 
 if __name__ == "__main__":
-    # generator.generate_music_with_melody_ngrams(
-    #     output_file="test1.mid",
-    #     bars=40,
-    #     instrument=0,
-    #     with_octave=True,
-    #     only_high_notes=False,
-    #     # first_note="D",
-    #     # tempo=70,
-    #     # lengths_flatten_factor=2,
-    # )
+    generator.generate_music_with_melody_ngrams(
+        output_file="test1.mid",
+        bars=40,
+        instrument=0,
+        with_octave=False,
+        only_high_notes=True,
+        # first_note="D",
+        # tempo=70,
+        # lengths_flatten_factor=2,
+    )
 
     generator.generate_music_with_tuple_ngrams(
         output_file="test2.mid",
@@ -901,16 +913,16 @@ if __name__ == "__main__":
         # start_with_chord=True,
     )
 
-    # DIFFERENT SAMPLING METHODS
-    generator_uniform.generate_music_with_tuple_ngrams(
-        output_file="test2_uniform.mid",
-        bars=40,
-        instrument=0,
-        with_octave=True,
-        only_high_notes=False,
-        # first_note="C",
-        # lengths_flatten_factor=2
-    )
+    # # DIFFERENT SAMPLING METHODS
+    # generator_uniform.generate_music_with_tuple_ngrams(
+    #     output_file="test2_uniform.mid",
+    #     bars=40,
+    #     instrument=0,
+    #     with_octave=True,
+    #     only_high_notes=False,
+    #     # first_note="C",
+    #     # lengths_flatten_factor=2
+    # )
 
     # generator_greedy.generate_music_with_tuple_ngrams(
     #     output_file="test2_greedy.mid",
@@ -931,15 +943,15 @@ if __name__ == "__main__":
     #     lengths_flatten_factor=2
     # )
 
-    generator_p80.generate_music_with_tuple_ngrams(
-        output_file="test2_p80.mid",
-        bars=40,
-        instrument=0,
-        with_octave=True,
-        only_high_notes=False,
-        # first_note="C",
-        # lengths_flatten_factor=2
-    )
+    # generator_p80.generate_music_with_tuple_ngrams(
+    #     output_file="test2_p80.mid",
+    #     bars=40,
+    #     instrument=0,
+    #     with_octave=True,
+    #     only_high_notes=False,
+    #     # first_note="C",
+    #     # lengths_flatten_factor=2
+    # )
 
     # generator.generate_music_from_file_nanogpt(
     #     input_filepath="nanoGPT/test0.txt", output_file="test_gpt2.mid", instrument=0
