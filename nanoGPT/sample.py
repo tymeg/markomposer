@@ -17,9 +17,9 @@ init_from = (
 )
 out_dir = "out"  # ignored if init_from is not 'resume'
 start = [
+    "I0",
     "N60",
     "L240",
-    "I0",
 ]  # or "<|endoftext|>" or etc. Can also specify a file, use as: "FILE:prompt.txt"
 # start = " "
 num_samples = 1  # number of samples to draw
@@ -110,7 +110,6 @@ if load_meta:
 start_ids = encode(start)
 x = torch.tensor(start_ids, dtype=torch.long, device=device)[None, ...]
 
-
 def gpt_token_distribution(prefix):
     prefix = (
         prefix
@@ -133,7 +132,7 @@ def gpt_token_distribution(prefix):
 
             return res
 
-symbols = ["N", "L", "I"]
+symbols = ["I", "N", "L"]
 for k in range(num_samples):
     # SAMPLING LOOP
     content = start
@@ -142,7 +141,8 @@ for k in range(num_samples):
         print(distribution)
         print()
 
-        del distribution["N100"] # xD
+        del distribution[distribution.keys()[0]] # xD
+        del distribution["END"]
 
         # force correct type of token symbol
         distribution = {
@@ -158,6 +158,7 @@ for k in range(num_samples):
         ppbs /= ppbs.sum()
 
         token = np.random.choice(list(distribution.keys()), p=ppbs)
+        # token = max(distribution, key=distribution.get)
         content.append(token)
 
     output = " ".join(content) 
@@ -167,12 +168,12 @@ for k in range(num_samples):
         f.write(output)
     
 
-# # run generation
+# run generation
 # with torch.no_grad():
 #     with ctx:
 #         for k in range(num_samples):
 #             y = model.generate(x, max_new_tokens, temperature=temperature, top_k=top_k)
-#             # with open("test.txt", "w") as f:
-#             #     f.write(str(y[0].tolist()))
+#             with open("test.txt", "w") as f:
+#                 f.write(str(y[0].tolist()))
 #             print(decode(y[0].tolist()))
 #             print('---------------')
