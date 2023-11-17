@@ -116,6 +116,8 @@ class MarkovModel:
 
         for mid in self.mids:
             self.__process_mid_file(mid, merge_tracks, ignore_bass)
+            self.notes_list_file1.write("END\n")
+            self.notes_list_file2.write("END\n")
 
         if self.main_tempo > 0:
             self.main_tempo //= self.__tempos_count
@@ -231,7 +233,7 @@ class MarkovModel:
             # append to file for nanoGPT
             for note, note_length, until_next_note_start in all_tuples:
                 self.notes_list_file1.write(
-                    f"N{str(note)} L{str(note_length)} I{str(until_next_note_start)} "
+                    f"I{str(until_next_note_start)} N{str(note)} L{str(note_length)} "
                 )
                 self.notes_list_file2.write(
                     f"{str(note)},{str(note_length)},{str(until_next_note_start)} "

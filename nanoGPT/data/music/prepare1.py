@@ -17,7 +17,7 @@ with open(input_file_path, "r") as f:
 print(f"length of dataset in characters: {len(data):,}")
 
 # note note_length until_next_note_start separated by spaces
-# in specific format: e.g. N60 L120 I0
+# in specific format: e.g. I0 N60 L120
 input_values = data.split()
 print(f"length of dataset in notes: {len(input_values) // 3:,}")
 print(f"number of note lengths: {len(generator.note_lengths_range)}, number of interval lengths: {len(generator.until_next_note_range)}")
@@ -28,15 +28,16 @@ print(f"number of note lengths: {len(generator.note_lengths_range)}, number of i
 # until_next_note_starts = list(map(lambda length: "I" + str(length), generator.until_next_note_range))
 
 # vocab consists of values only from input_values
-notes = sorted(list(set(input_values[::3])))
-note_lengths = sorted(list(set(input_values[1::3])))
-until_next_note_starts = sorted(list(set(input_values[2::3])))
+# until_next_note_starts = sorted(list(set(input_values[::3])))
+# notes = sorted(list(set(input_values[1::3])))
+# note_lengths = sorted(list(set(input_values[2::3])))
 
-vocab = notes + note_lengths + until_next_note_starts
+# vocab = notes + note_lengths + until_next_note_starts
 
-print(notes)
-print(note_lengths)
-print(until_next_note_starts)
+# print(notes)
+# print(note_lengths)
+# print(until_next_note_starts)
+vocab = sorted(list(set(input_values)))
 
 vocab_size = len(vocab)
 print(f"vocab size: {vocab_size:,}")
@@ -60,7 +61,7 @@ def decode(tokens):
 # create the train and test splits
 n = len(input_values)
 # mod 3 = 0 because notes are 3 consecutive values
-border = (int(n * 0.8) // 3) * 3
+border = int(n * 0.8)
 train_data = input_values[: border]
 val_data = input_values[border :]
 

@@ -769,7 +769,7 @@ class MusicGenerator:
         # for tuple in tuples:
         # next_note, note_length, until_next_note_start = map(int, tuple.split(","))
         while values:
-            next_note, note_length, until_next_note_start = (
+            until_next_note_start, next_note, note_length = (
                 int(values[0][1:]),
                 int(values[1][1:]),
                 int(values[2][1:]),
@@ -851,34 +851,35 @@ class MusicGenerator:
 
 
 # parse arguments - will be expanded and moved to main file
-n = 5
+n = 8
 if n < 2:
     raise ValueError("n must be >= 2!")
 
 # single file
-# pathname = "usa.mid"
-# mm = MarkovModel(
-#     n=n,
-#     dir=False,
-#     pathname=pathname,
-#     merge_tracks=True,
-#     ignore_bass=True,
-#     # key="C",
-#     time_signature="4/4"
-# )
-
-# or dirname - e.g. -d or --dir flag
-pathname = "mozart"
+pathname = "usa.mid"
 mm = MarkovModel(
     n=n,
-    dir=True,
+    dir=False,
     pathname=pathname,
     merge_tracks=True,
     ignore_bass=False,
-    key="Gm",
-    time_signature="4/4",
+    # key="C",
+    # time_signature="4/4",
     lengths_flatten_factor=2,
 )
+
+# or dirname - e.g. -d or --dir flag
+# pathname = "mozart"
+# mm = MarkovModel(
+#     n=n,
+#     dir=True,
+#     pathname=pathname,
+#     merge_tracks=True,
+#     ignore_bass=False,
+#     key="Gm",
+#     time_signature="4/4",
+#     lengths_flatten_factor=2,
+# )
 
 if mm.processed_mids == 0:
     raise ValueError("Couldn't process any mids! Try turning off key signature.")
@@ -901,17 +902,17 @@ if __name__ == "__main__":
         # lengths_flatten_factor=2,
     )
 
-    generator.generate_music_with_tuple_ngrams(
-        output_file="test2.mid",
-        bars=40,
-        instrument=0,
-        with_octave=True,
-        only_high_notes=False,
-        # first_note="G",
-        # tempo=100,
-        # lengths_flatten_factor=2,
-        # start_with_chord=True,
-    )
+    # generator.generate_music_with_tuple_ngrams(
+    #     output_file="test2.mid",
+    #     bars=40,
+    #     instrument=0,
+    #     with_octave=True,
+    #     only_high_notes=False,
+    #     # first_note="G",
+    #     # tempo=100,
+    #     # lengths_flatten_factor=2,
+    #     # start_with_chord=True,
+    # )
 
     # # DIFFERENT SAMPLING METHODS
     # generator_uniform.generate_music_with_tuple_ngrams(
@@ -933,15 +934,14 @@ if __name__ == "__main__":
     #     first_note="D#",
     # )
 
-    # generator_k3.generate_music_with_tuple_ngrams(
-    #     output_file="test2_k3.mid",
-    #     bars=40,
-    #     instrument=0,
-    #     with_octave=True,
-    #     only_high_notes=False,
-    #     # first_note="D",
-    #     lengths_flatten_factor=2
-    # )
+    generator_k3.generate_music_with_tuple_ngrams(
+        output_file="test2_k3.mid",
+        bars=40,
+        instrument=0,
+        with_octave=True,
+        only_high_notes=False,
+        # first_note="D",
+    )
 
     # generator_p80.generate_music_with_tuple_ngrams(
     #     output_file="test2_p80.mid",
