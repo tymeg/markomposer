@@ -213,8 +213,6 @@ class MusicGenerator:
             if abs(note - prev_note) < min_abs:
                 offset = note - prev_note
                 min_abs = abs(note - prev_note)
-        if prev_note + offset < 36:
-            print("problem")
         return prev_note + offset
 
     def __first_nminus1_tuples(
@@ -983,15 +981,15 @@ if n < 2:
 # )
 
 # or dirname - e.g. -d or --dir flag
-pathname = "pop"
+pathname = "trad_3_4"
 mm = MarkovModel(
     n=n,
     dir=True,
     pathname=pathname,
     merge_tracks=True,
     ignore_bass=False,
-    key="C",
-    time_signature="4/4",
+    key="Cm",
+    time_signature="3/4",
     # lengths_flatten_factor=2,
 )
 
@@ -1012,7 +1010,7 @@ if __name__ == "__main__":
     #     with_octave=False,
     #     only_high_notes=True,
     #     # first_note="D",
-    #     # tempo=70,
+    #     tempo=80,
     #     # lengths_flatten_factor=2,
     # )
 
@@ -1023,18 +1021,18 @@ if __name__ == "__main__":
     #     with_octave=True,
     #     only_high_notes=False,
     #     # first_note="G",
-    #     # tempo=100,
+    #     tempo=80,
     #     # lengths_flatten_factor=2,
     #     # start_with_chord=True,
     # )
 
     generator.generate_music_with_bar_ngrams(
         output_file="test3.mid",
-        bars=120,
+        bars=80,
         instrument=0,
         with_octave=True,
         only_high_notes=False,
-        tempo=90,
+        tempo=80,
     )
 
     # # DIFFERENT SAMPLING METHODS

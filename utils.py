@@ -216,7 +216,8 @@ def infer_key(all_notes: list[str]) -> str:
                     break
             if valid_key:
                 key_candidates.append(key)
-        notes.pop(-1)
+        if not key_candidates:
+            notes.pop(-1)
 
     if not key_candidates:  # probably cannot even happen
         return None

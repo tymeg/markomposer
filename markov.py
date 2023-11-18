@@ -433,7 +433,7 @@ class MarkovModel:
                     self.__count_all(note_lengths)
 
         if merge_tracks:
-            if self.main_key and not self.__current_key and note_lengths:
+            if self.main_key and not self.__current_key and all_note_lengths:
                 all_note_lengths = self.__transpose_track(all_note_lengths)
                 if all_note_lengths is None:
                     return  # skip file in training
