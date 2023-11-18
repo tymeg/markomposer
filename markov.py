@@ -40,6 +40,10 @@ class MarkovModel:
         self.melody_nminus1gram_starts_of_bar = set()
         self.melody_nminus1gram_without_octaves_starts_of_bar = set()
 
+        # dict: chord -> how many
+        self.chords = dict()
+        self.chords_without_octaves = dict()
+
         # TUPLES (NOTE, NOTE LENGTH, TIME IN BAR)
         self.bar_ngrams = dict()
         self.bar_nminus1grams = dict()
@@ -142,6 +146,9 @@ class MarkovModel:
         self.notes_list_file1.close()
         self.notes_list_file2.close()
 
+        print(dict(sorted(self.chords.items(), key=lambda item: item[1], reverse=True)))
+        # print(dict(sorted(self.chords_without_octaves.items(), key=lambda item: item[1], reverse=True)))
+
     def __collect_mid_files(self, dir: bool) -> None:
         if dir:
             for filename in os.listdir(self.path):
@@ -210,7 +217,7 @@ class MarkovModel:
                 melody_note_lengths,
                 melody_intervals,
                 melody_starts_of_bar,
-            ) = self.__extract_melody(note_lengths)
+            ) = self.__extract_melody_and_chords(note_lengths)
 
             rounded_note_lengths = list(
                 map(
@@ -487,7 +494,7 @@ class MarkovModel:
         else:
             print(msg)
 
-    def __extract_melody(
+    def __extract_melody_and_chords(
         self, note_lengths: list[tuple[int, bool]]
     ) -> tuple[list[int], bool]:
         # assumes melody is the sequence of single notes with highest pitch of all playing
@@ -514,14 +521,18 @@ class MarkovModel:
         for box_idx in range(len(boxes)):
             if len(boxes[box_idx]) > 1:
                 # highest note in box
-                _, hstart, hnote_length, _, _ = boxes[box_idx][len(boxes[box_idx]) - 1]
+                hnote, hstart, hnote_length, _, _ = boxes[box_idx][len(boxes[box_idx]) - 1]
+                extended_chord = (hnote,)
                 while len(boxes[box_idx]) > 1:
+                    chord = tuple()
                     note, start, note_length, start_of_bar, time_in_bar = boxes[
                         box_idx
                     ][0]
                     if note_lengths_dict.get(
                         (start, note_length, note, start_of_bar, time_in_bar)
                     ):
+                        chord += (note,)
+                        extended_chord += (note,)
                         tolerance = self.length_precision // 3
                         if (
                             hstart > start and start + note_length - tolerance > hstart
@@ -532,6 +543,13 @@ class MarkovModel:
                                 (start, note_length, note, start_of_bar, time_in_bar)
                             ]
                     boxes[box_idx].pop(0)
+                if len(extended_chord) > 2:
+                    extended_chord = tuple(sorted(extended_chord))
+                    self.__count(self.chords, extended_chord)
+                    self.__count(self.chords_without_octaves, tuple(map(lambda note: utils.get_note_name(note), extended_chord)))
+                if len(chord) > 1:
+                    self.__count(self.chords, chord)
+                    self.__count(self.chords_without_octaves, tuple(map(lambda note: utils.get_note_name(note), chord)))
 
         full_melody_note_lengths = sorted(list(note_lengths_dict.keys()))
         melody_notes = list(map(lambda tpl: tpl[2], full_melody_note_lengths))
@@ -566,11 +584,11 @@ class MarkovModel:
 
         return melody_notes, melody_note_lengths, melody_intervals, melody_starts_of_bar
 
-    def __count_ngram(self, ngrams: Dict[tuple, int], counted_ngram: tuple) -> None:
-        if ngrams.get(counted_ngram) is not None:
-            ngrams[counted_ngram] += 1
+    def __count(self, dict: Dict[tuple, int], tuple: tuple) -> None:
+        if dict.get(tuple) is not None:
+            dict[tuple] += 1
         else:
-            ngrams[counted_ngram] = 1
+            dict[tuple] = 1
 
     def __count_track_tuple_ngrams(
         self,
@@ -613,8 +631,8 @@ class MarkovModel:
                         nminus1gram_without_octaves
                     )
 
-            self.__count_ngram(nminus1grams, nminus1gram)
-            self.__count_ngram(
+            self.__count(nminus1grams, nminus1gram)
+            self.__count(
                 nminus1grams_without_octaves, nminus1gram_without_octaves
             )
 
@@ -634,5 +652,5 @@ class MarkovModel:
                     ),
                 )
 
-                self.__count_ngram(ngrams, ngram)
-                self.__count_ngram(ngrams_without_octaves, ngram_without_octaves)
+                self.__count(ngrams, ngram)
+                self.__count(ngrams_without_octaves, ngram_without_octaves)
