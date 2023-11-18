@@ -15,7 +15,7 @@ DRUM_CHANNEL = 9
 PERCUSSIVE_INSTRUMENTS = 112 # from
 BASS = range(32, 40)
 
-HIGH_NOTES_OCTAVE_THRESHOLD = 3
+HIGH_NOTES_OCTAVE_THRESHOLD = 2
 
 LOWEST_USED_OCTAVE = 1
 HIGHEST_USED_OCTAVE = 6
@@ -112,12 +112,6 @@ def get_note_octave(note: int) -> int:
 
 def get_note_name_with_octave(note: int) -> str:
     return get_note_name(note) + str(get_note_octave(note))
-
-
-NOTES_RANGE = range(
-    get_note_in_octave("C", LOWEST_USED_OCTAVE),
-    get_note_in_octave("B", HIGHEST_USED_OCTAVE) + 1,
-)
 
 
 def flat_to_sharp(note: str) -> str:
