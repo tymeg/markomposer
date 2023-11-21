@@ -199,6 +199,7 @@ class MarkovModel:
 
     def __count_all(self, note_lengths: list[tuple[int, bool]]) -> None:
         if note_lengths:
+            note_lengths = list(set(note_lengths))
             note_lengths.sort()
             notes = list(map(lambda tpl: tpl[2], note_lengths))
             # print(f"Track {track_idx} notes: \n{notes}")
@@ -523,8 +524,8 @@ class MarkovModel:
                 # highest note in box
                 hnote, hstart, hnote_length, _, _ = boxes[box_idx][len(boxes[box_idx]) - 1]
                 extended_chord = (hnote,)
+                chord = tuple()
                 while len(boxes[box_idx]) > 1:
-                    chord = tuple()
                     note, start, note_length, start_of_bar, time_in_bar = boxes[
                         box_idx
                     ][0]
@@ -544,10 +545,11 @@ class MarkovModel:
                             ]
                     boxes[box_idx].pop(0)
                 if len(extended_chord) > 2:
-                    extended_chord = tuple(sorted(extended_chord))
+                    extended_chord = tuple(sorted(set(extended_chord)))
                     self.__count(self.chords, extended_chord)
                     self.__count(self.chords_without_octaves, tuple(map(lambda note: utils.get_note_name(note), extended_chord)))
                 if len(chord) > 1:
+                    chord = tuple(sorted(set(chord)))
                     self.__count(self.chords, chord)
                     self.__count(self.chords_without_octaves, tuple(map(lambda note: utils.get_note_name(note), chord)))
 
