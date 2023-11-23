@@ -98,6 +98,7 @@ class MarkovModel:
         )
 
         if self.main_beats_per_bar in [2, 3, 4]:
+            self.simple_time = True
             self.used_note_lengths = list(
                 map(
                     lambda l: utils.TICKS_PER_32NOTE * l,
@@ -105,6 +106,7 @@ class MarkovModel:
                 )
             )
         else:
+            self.simple_time = False
             self.used_note_lengths = list(
                 map(
                     lambda l: utils.TICKS_PER_32NOTE * l,
