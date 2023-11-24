@@ -583,7 +583,7 @@ class MusicGenerator:
         output_file: str,
         bars: int,
         instrument_melody: int,
-        instrument_chords: int,
+        instrument_harmony: int,
         melody_velocity: int = utils.DEFAULT_VELOCITY,
         harmony_velocity: int = utils.DEFAULT_VELOCITY,
         with_octave: bool = True,
@@ -619,7 +619,7 @@ class MusicGenerator:
         )
         time_in_strong_beat = 0
 
-        chord_track = self.__start_track(new_mid, instrument_chords, False)
+        chord_track = self.__start_track(new_mid, instrument_harmony, False)
         if with_octave:
             all_count = sum(self.mm.chords.values())
             chords = self.mm.chords
@@ -1231,7 +1231,7 @@ if n < 2:
 # )
 
 # or dirname - e.g. -d or --dir flag
-pathname = "pop"
+pathname = "chopin"
 mm = MarkovModel(
     n=n,
     dir=True,
@@ -1239,7 +1239,7 @@ mm = MarkovModel(
     merge_tracks=True,
     ignore_bass=True,
     key="C",
-    time_signature="4/4",
+    time_signature="3/4",
     # lengths_flatten_factor=2,
 )
 
@@ -1253,37 +1253,37 @@ generator_k3 = MusicGenerator(mm, k=3)
 generator_p80 = MusicGenerator(mm, p=0.8, weighted_random_start=True)
 
 if __name__ == "__main__":
-    generator.generate_music_with_melody_ngrams(
-        output_file="test1.mid",
-        bars=40,
-        instrument_melody=0,
-        instrument_chords=32,
-        melody_velocity=64,
-        harmony_velocity=35,
-        with_octave=True,
-        only_high_notes_melody=False,
-        only_low_notes_harmony=True,
-        # first_note="D",
-        # tempo=80,
-        lengths_flatten_factor=2,
-        # only_chords=True,
-        only_arpeggios=True,
-        more_chords=False,
-        long_chords=False,
-    )
-
-    # generator.generate_music_with_tuple_ngrams(
-    #     output_file="test2.mid",
+    # generator.generate_music_with_melody_ngrams(
+    #     output_file="test1.mid",
     #     bars=40,
-    #     instrument=0,
+    #     instrument_melody=0,
+    #     instrument_harmony=0,
+    #     # melody_velocity=64,
+    #     # harmony_velocity=35,
     #     with_octave=True,
-    #     only_high_notes=False,
-    #     # first_note="G",
+    #     only_high_notes_melody=False,
+    #     only_low_notes_harmony=False,
+    #     # first_note="D",
     #     # tempo=80,
     #     lengths_flatten_factor=2,
-    #     # start_with_chord=True,
-    #     # velocity=80,
+    #     only_chords=True,
+    #     # only_arpeggios=True,
+    #     more_chords=False,
+    #     long_chords=False,
     # )
+
+    generator.generate_music_with_tuple_ngrams(
+        output_file="test2.mid",
+        bars=40,
+        instrument=0,
+        with_octave=True,
+        only_high_notes=False,
+        # first_note="G",
+        tempo=80,
+        lengths_flatten_factor=2,
+        # start_with_chord=True,
+        # velocity=80,
+    )
 
     # generator.generate_music_with_bar_ngrams(
     #     output_file="test3.mid",
