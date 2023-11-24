@@ -1,8 +1,9 @@
 import os
-import utils
 from mido import MidiFile, MetaMessage, tempo2bpm
 import math
 from typing import Dict
+
+import utils
 
 
 class MarkovModel:
@@ -231,21 +232,36 @@ class MarkovModel:
                 )
             )
             starts_of_bar = list(map(lambda tpl: tpl[3], note_lengths))
-            rounded_times_in_bar = list()
-            for tpl in note_lengths:
-                time_in_bar = tpl[4]
-                floor = (
-                    math.floor(time_in_bar / self.length_precision) * self.length_precision
-                ) % self.main_bar_length
-                ceil = (
-                    math.ceil(time_in_bar / self.length_precision) * self.length_precision
-                ) % self.main_bar_length
+            # always floor
+            rounded_times_in_bar = list(
+                map(
+                    lambda tpl: (
+                        math.floor(tpl[4] / self.length_precision)
+                        * self.length_precision
+                    )
+                    % self.main_bar_length,
+                    note_lengths,
+                )
+            )
 
-                # pick closer
-                if abs(time_in_bar - floor) < abs(time_in_bar - ceil):
-                    rounded_times_in_bar.append(floor)
-                else:
-                    rounded_times_in_bar.append(ceil)
+            # floor or ceil depending on which is closer
+            # rounded_times_in_bar = list()
+            # for tpl in note_lengths:
+            #     time_in_bar = tpl[4]
+            # floor = (
+            #     math.floor(time_in_bar / self.length_precision)
+            #     * self.length_precision
+            # ) % self.main_bar_length
+            #     ceil = (
+            #         math.ceil(time_in_bar / self.length_precision)
+            #         * self.length_precision
+            #     ) % self.main_bar_length
+
+            #     # pick closer
+            #     if abs(time_in_bar - floor) < abs(time_in_bar - ceil):
+            #         rounded_times_in_bar.append(floor)
+            #     else:
+            #         rounded_times_in_bar.append(ceil)
 
             melody_tuples = list(
                 zip(melody_notes, melody_note_lengths, melody_intervals)
@@ -524,7 +540,9 @@ class MarkovModel:
         for box_idx in range(len(boxes)):
             if len(boxes[box_idx]) > 1:
                 # highest note in box
-                hnote, hstart, hnote_length, _, _ = boxes[box_idx][len(boxes[box_idx]) - 1]
+                hnote, hstart, hnote_length, _, _ = boxes[box_idx][
+                    len(boxes[box_idx]) - 1
+                ]
                 extended_chord = (hnote,)
                 chord = tuple()
                 while len(boxes[box_idx]) > 1:
@@ -549,11 +567,19 @@ class MarkovModel:
                 if len(extended_chord) > 2:
                     extended_chord = tuple(sorted(set(extended_chord)))
                     self.__count(self.chords, extended_chord)
-                    self.__count(self.chords_without_octaves, tuple(map(lambda note: utils.get_note_name(note), extended_chord)))
+                    self.__count(
+                        self.chords_without_octaves,
+                        tuple(
+                            map(lambda note: utils.get_note_name(note), extended_chord)
+                        ),
+                    )
                 if len(chord) > 1:
                     chord = tuple(sorted(set(chord)))
                     self.__count(self.chords, chord)
-                    self.__count(self.chords_without_octaves, tuple(map(lambda note: utils.get_note_name(note), chord)))
+                    self.__count(
+                        self.chords_without_octaves,
+                        tuple(map(lambda note: utils.get_note_name(note), chord)),
+                    )
 
         full_melody_note_lengths = sorted(list(note_lengths_dict.keys()))
         melody_notes = list(map(lambda tpl: tpl[2], full_melody_note_lengths))
@@ -636,9 +662,7 @@ class MarkovModel:
                     )
 
             self.__count(nminus1grams, nminus1gram)
-            self.__count(
-                nminus1grams_without_octaves, nminus1gram_without_octaves
-            )
+            self.__count(nminus1grams_without_octaves, nminus1gram_without_octaves)
 
             # not last n-1 tuples -> count n-gram
             if note_idx != len(tuples) - self.n + 1:

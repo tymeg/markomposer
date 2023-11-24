@@ -1,11 +1,12 @@
 import os
-import utils
 from mido import MidiFile, MidiTrack, Message, MetaMessage, bpm2tempo
 import numpy as np
 import random
+import math
 from itertools import permutations
 from typing import Dict
 
+import utils
 from markov import MarkovModel
 
 
@@ -591,15 +592,17 @@ class MusicGenerator:
         first_note: str = None,
         tempo: int = None,
         lengths_flatten_factor: int = None,
-        arpeggio: bool = False,
+        only_chords: bool = False,
+        only_arpeggios: bool = False,
         more_chords: bool = False,
-        # False - chord every start of bar,
+        # False - chord/arpeggio every start of bar,
         # True - every strong beat
         long_chords: bool = False,
-        # False - chords of strong beat length
-        # True - chords of chord_frequency length
+        # False - chords/arpeggios of strong beat length
+        # True - chords/arpeggios of chord_frequency length
     ) -> None:
         assert self.mm.fixed_time_signature
+        assert not (only_chords and only_arpeggios)
 
         new_mid = MidiFile(
             type=1, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
@@ -625,7 +628,7 @@ class MusicGenerator:
             chords = self.mm.chords_without_octaves
         chord_ppbs = {chord: count / all_count for chord, count in chords.items()}
 
-        if arpeggio:
+        if not only_chords:
             arp_len = 4 if self.mm.simple_time else 3
 
         ret = self.__first_nminus1_tuples(
@@ -708,9 +711,10 @@ class MusicGenerator:
                 break
             if time_in_bar == 0 or (more_chords and note_start_in_strong_beat == 0):
                 iters = (
-                    1
-                    if prev_interval + next_note_length < chord_frequency
-                    else (prev_interval + next_note_length) // chord_frequency
+                    math.ceil((next_note_length + next_interval) / chord_frequency)
+                    # 1
+                    # if prev_interval + next_note_length < chord_frequency
+                    # else (prev_interval + next_note_length) // chord_frequency
                 )
                 start_time = total_time
                 for _ in range(iters):
@@ -759,7 +763,13 @@ class MusicGenerator:
                             specific_chord += (specific_note,)
                         chord = tuple(set(specific_chord))
 
-                    arp = None
+                    arpeggio = only_arpeggios
+                    if not arpeggio:
+                        if only_chords:
+                            arpeggio = False
+                        else:
+                            arpeggio = random.choice([True, False])
+
                     if arpeggio:  # random arpeggios
                         while len(chord) < arp_len:
                             chord += (random.choice(chord),)
@@ -770,6 +780,7 @@ class MusicGenerator:
                             messages.append((start_time, note, True, harmony_velocity, 1))
                             messages.append((start_time + note_len, note, False, harmony_velocity, 1))
                             start_time += note_len
+                        start_time = total_time
                     else:
                         for note in chord:
                             messages.append((start_time, note, True, harmony_velocity, 1))
@@ -1202,7 +1213,7 @@ class MusicGenerator:
 
 
 # parse arguments - will be expanded and moved to main file
-n = 4
+n = 3
 if n < 2:
     raise ValueError("n must be >= 2!")
 
@@ -1246,39 +1257,42 @@ if __name__ == "__main__":
         output_file="test1.mid",
         bars=40,
         instrument_melody=0,
-        instrument_chords=90,
+        instrument_chords=32,
         melody_velocity=64,
         harmony_velocity=35,
         with_octave=True,
-        only_high_notes_melody=True,
+        only_high_notes_melody=False,
         only_low_notes_harmony=True,
         # first_note="D",
         # tempo=80,
         lengths_flatten_factor=2,
-        arpeggio=False,
-        more_chords=True,
-        # long_chords=True,
+        # only_chords=True,
+        only_arpeggios=True,
+        more_chords=False,
+        long_chords=False,
     )
 
     # generator.generate_music_with_tuple_ngrams(
     #     output_file="test2.mid",
-    #     bars=80,
+    #     bars=40,
     #     instrument=0,
     #     with_octave=True,
     #     only_high_notes=False,
     #     # first_note="G",
-    #     tempo=80,
-    #     # lengths_flatten_factor=2,
+    #     # tempo=80,
+    #     lengths_flatten_factor=2,
     #     # start_with_chord=True,
+    #     # velocity=80,
     # )
 
     # generator.generate_music_with_bar_ngrams(
     #     output_file="test3.mid",
-    #     bars=80,
+    #     bars=40,
     #     instrument=0,
     #     with_octave=True,
     #     only_high_notes=False,
-    #     tempo=80,
+    #     # tempo=80,
+    #     # velocity=80,
     # )
 
     # # DIFFERENT SAMPLING METHODS
