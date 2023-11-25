@@ -17,13 +17,20 @@ init_from = (
 )
 out_dir = "out"  # ignored if init_from is not 'resume'
 start = [
-    "I0",
-    "N60",
-    "L240",
+    "START"
+    # "I480",
+    # "N67",
+    # "L480",
+    # "I480",
+    # "N65",
+    # "L480",
+    # "I0",
+    # "N60",
+    # "L480",
 ]  # or "<|endoftext|>" or etc. Can also specify a file, use as: "FILE:prompt.txt"
 # start = " "
 num_samples = 1  # number of samples to draw
-max_new_tokens = 999  # number of tokens generated in each sample
+max_new_tokens = 2100  # number of tokens generated in each sample
 temperature = (
     0.8  # 1.0 = no change, < 1.0 = less random, > 1.0 = more random, in predictions
 )
@@ -86,7 +93,7 @@ if (
     and "config" in checkpoint
     and "dataset" in checkpoint["config"]
 ):  # older checkpoints might not have these...
-    meta_path = os.path.join("data", checkpoint["config"]["dataset"], "meta.pkl")
+    meta_path = os.path.join("data", checkpoint["config"]["dataset"], "meta_2flat_4_4.pkl")
     load_meta = os.path.exists(meta_path)
 if load_meta:
     print(f"Loading meta from {meta_path}...")
@@ -138,11 +145,10 @@ for k in range(num_samples):
     content = start
     for i in range(max_new_tokens):
         distribution = gpt_token_distribution(content)
-        print(distribution)
-        print()
+        # print(distribution)
+        # print()
 
-        del distribution[distribution.keys()[0]] # xD
-        del distribution["END"]
+        # del distribution["END"]
 
         # force correct type of token symbol
         distribution = {

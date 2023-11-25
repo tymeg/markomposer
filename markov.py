@@ -120,37 +120,40 @@ class MarkovModel:
         self.__current_key = None
         self.__keys = list()
 
-        self.path = os.path.join(os.getcwd(), pathname)  # CWD
-        # self.path = os.path.join(os.path.dirname(__file__), pathname) # directory of markov.py
-        self.notes_list_file1 = open(
-            os.path.join(os.path.dirname(__file__), "nanoGPT/data/music/input1.txt"),
-            "w",
-        )
-        self.notes_list_file2 = open(
-            os.path.join(os.path.dirname(__file__), "nanoGPT/data/music/input2.txt"),
-            "w",
-        )
+        if pathname is not None:
+            self.path = os.path.join(os.getcwd(), pathname)  # CWD
+            # self.path = os.path.join(os.path.dirname(__file__), pathname) # directory of markov.py
+            self.notes_list_file1 = open(
+                os.path.join(os.path.dirname(__file__), "nanoGPT/data/music/input1.txt"),
+                "w",
+            )
+            self.notes_list_file2 = open(
+                os.path.join(os.path.dirname(__file__), "nanoGPT/data/music/input2.txt"),
+                "w",
+            )
 
-        self.mids = list()
-        self.processed_mids = 0
+            self.mids = list()
+            self.processed_mids = 0
 
-        self.__collect_mid_files(dir)
+            self.__collect_mid_files(dir)
 
-        for mid in self.mids:
-            self.__process_mid_file(mid, merge_tracks, ignore_bass)
-            self.notes_list_file1.write("END\n")
-            self.notes_list_file2.write("END\n")
+            for mid in self.mids:
+                self.notes_list_file1.write("START ")
+                self.notes_list_file2.write("START ")
+                self.__process_mid_file(mid, merge_tracks, ignore_bass)
+                self.notes_list_file1.write("END\n")
+                self.notes_list_file2.write("END\n")
 
-        if self.main_tempo > 0:
-            self.main_tempo //= self.__tempos_count
-        else:
-            self.main_tempo = utils.DEFAULT_TEMPO
+            if self.main_tempo > 0:
+                self.main_tempo //= self.__tempos_count
+            else:
+                self.main_tempo = utils.DEFAULT_TEMPO
 
-        self.notes_list_file1.close()
-        self.notes_list_file2.close()
+            self.notes_list_file1.close()
+            self.notes_list_file2.close()
 
-        print(dict(sorted(self.chords.items(), key=lambda item: item[1], reverse=True)))
-        # print(dict(sorted(self.chords_without_octaves.items(), key=lambda item: item[1], reverse=True)))
+            # print(dict(sorted(self.chords.items(), key=lambda item: item[1], reverse=True)))
+            # print(dict(sorted(self.chords_without_octaves.items(), key=lambda item: item[1], reverse=True)))
 
     def __collect_mid_files(self, dir: bool) -> None:
         if dir:
@@ -232,6 +235,7 @@ class MarkovModel:
                 )
             )
             starts_of_bar = list(map(lambda tpl: tpl[3], note_lengths))
+            
             # always floor
             rounded_times_in_bar = list(
                 map(
@@ -243,25 +247,6 @@ class MarkovModel:
                     note_lengths,
                 )
             )
-
-            # floor or ceil depending on which is closer
-            # rounded_times_in_bar = list()
-            # for tpl in note_lengths:
-            #     time_in_bar = tpl[4]
-            # floor = (
-            #     math.floor(time_in_bar / self.length_precision)
-            #     * self.length_precision
-            # ) % self.main_bar_length
-            #     ceil = (
-            #         math.ceil(time_in_bar / self.length_precision)
-            #         * self.length_precision
-            #     ) % self.main_bar_length
-
-            #     # pick closer
-            #     if abs(time_in_bar - floor) < abs(time_in_bar - ceil):
-            #         rounded_times_in_bar.append(floor)
-            #     else:
-            #         rounded_times_in_bar.append(ceil)
 
             melody_tuples = list(
                 zip(melody_notes, melody_note_lengths, melody_intervals)
@@ -364,7 +349,7 @@ class MarkovModel:
             key_idx = 0
             meter_idx = 0
 
-            # list of tuples (start of note, note length, note) to sort lexycographically
+            # list of tuples (start of note, note length, note, if start of bar, time in bar) to sort lexycographically
             note_lengths = list()
             currently_playing_notes_starts = dict()
 

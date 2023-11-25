@@ -660,7 +660,7 @@ class MusicGenerator:
                 bar_length,
             )
             next_note, next_note_length, next_interval = next_tuple
-            if lengths_flatten_factor is not None:
+            if lengths_flatten_factor is not None or self.mm.fixed_time_signature:
                 next_note_length, next_interval = self.mm.round_time(
                     next_note_length,
                     True,
@@ -777,19 +777,41 @@ class MusicGenerator:
 
                         note_len = chord_length // len(arp)
                         for note in arp:
-                            messages.append((start_time, note, True, harmony_velocity, 1))
-                            messages.append((start_time + note_len, note, False, harmony_velocity, 1))
+                            messages.append(
+                                (start_time, note, True, harmony_velocity, 1)
+                            )
+                            messages.append(
+                                (
+                                    start_time + note_len,
+                                    note,
+                                    False,
+                                    harmony_velocity,
+                                    1,
+                                )
+                            )
                             start_time += note_len
                         start_time = total_time
                     else:
                         for note in chord:
-                            messages.append((start_time, note, True, harmony_velocity, 1))
-                            messages.append((start_time + chord_length, note, False, harmony_velocity, 1))
+                            messages.append(
+                                (start_time, note, True, harmony_velocity, 1)
+                            )
+                            messages.append(
+                                (
+                                    start_time + chord_length,
+                                    note,
+                                    False,
+                                    harmony_velocity,
+                                    1,
+                                )
+                            )
                     prev_chord = chord
                     start_time += chord_length
 
             messages.append((total_time, next_note, True, melody_velocity, 0))
-            messages.append((total_time + next_note_length, next_note, False, melody_velocity, 0))
+            messages.append(
+                (total_time + next_note_length, next_note, False, melody_velocity, 0)
+            )
             total_time += next_note_length + next_interval
 
             prev_note, prev_interval = next_note, next_interval
@@ -854,7 +876,7 @@ class MusicGenerator:
             raise ValueError(f"Can't start with note {first_note}!")
         prev_tuples, first_tuples = ret
 
-        messages = list()  # list of tuples (absolute start time, note, if_note_on)
+        messages = list()  # list of tuples (absolute start time, note, if_note_on, velocity, channel)
         # ADDING MESSAGES LOOP
         chord = set()
         total_time = 0
@@ -962,7 +984,7 @@ class MusicGenerator:
                 messages,
             )
             next_note, note_length, until_next_note_start = next_tuple
-            if lengths_flatten_factor is not None:
+            if lengths_flatten_factor is not None or self.mm.fixed_time_signature:
                 note_length, until_next_note_start = self.mm.round_time(
                     note_length,
                     True,
@@ -1107,6 +1129,7 @@ class MusicGenerator:
         total_time = 0
         # for tuple in tuples:
         # next_note, note_length, until_next_note_start = map(int, tuple.split(","))
+        values.pop(0) # get rid of START
         while values:
             until_next_note_start, next_note, note_length = (
                 int(values[0][1:]),
@@ -1116,7 +1139,7 @@ class MusicGenerator:
             for i in range(3):
                 values.pop(0)
 
-            if lengths_flatten_factor is not None:
+            if lengths_flatten_factor is not None or self.mm.fixed_time_signature:
                 note_length, until_next_note_start = self.mm.round_time(
                     note_length,
                     True,
@@ -1211,48 +1234,54 @@ class MusicGenerator:
         new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
         self.__print_track(output_file)
 
-
-# parse arguments - will be expanded and moved to main file
-n = 3
-if n < 2:
-    raise ValueError("n must be >= 2!")
-
-# single file
-# pathname = "usa.mid"
-# mm = MarkovModel(
-#     n=n,
-#     dir=False,
-#     pathname=pathname,
-#     merge_tracks=True,
-#     ignore_bass=False,
-#     # key="C",
-#     time_signature="3/4",
-#     # lengths_flatten_factor=2,
-# )
-
-# or dirname - e.g. -d or --dir flag
-pathname = "chopin"
-mm = MarkovModel(
-    n=n,
-    dir=True,
-    pathname=pathname,
-    merge_tracks=True,
-    ignore_bass=True,
-    key="C",
-    time_signature="3/4",
-    # lengths_flatten_factor=2,
-)
-
-if mm.processed_mids == 0:
-    raise ValueError("Couldn't process any mids! Try turning off key signature.")
-
-generator = MusicGenerator(mm)
-generator_uniform = MusicGenerator(mm, uniform=True)
-generator_greedy = MusicGenerator(mm, k=1, weighted_random_start=True)
-generator_k3 = MusicGenerator(mm, k=3)
-generator_p80 = MusicGenerator(mm, p=0.8, weighted_random_start=True)
-
 if __name__ == "__main__":
+    # parse arguments - will be expanded and moved to main file
+    n = 3
+    if n < 2:
+        raise ValueError("n must be >= 2!")
+
+    # single file
+    # pathname = "usa.mid"
+    # mm = MarkovModel(
+    #     n=n,
+    #     dir=False,
+    #     pathname=pathname,
+    #     merge_tracks=True,
+    #     ignore_bass=False,
+    #     # key="C",
+    #     time_signature="3/4",
+    #     # lengths_flatten_factor=2,
+    # )
+
+    # or dirname - e.g. -d or --dir flag
+    pathname = "big"
+    mm = MarkovModel(
+        n=n,
+        dir=True,
+        pathname=pathname,
+        merge_tracks=True,
+        ignore_bass=True,
+        key="C",
+        time_signature="4/4",
+        lengths_flatten_factor=2,
+    )
+
+    if mm.processed_mids == 0:
+        raise ValueError("Couldn't process any mids! Try turning off key signature.")
+
+    generator = MusicGenerator(mm)
+    generator_uniform = MusicGenerator(mm, uniform=True)
+    generator_greedy = MusicGenerator(mm, k=1, weighted_random_start=True)
+    generator_k3 = MusicGenerator(mm, k=3)
+    generator_p80 = MusicGenerator(mm, p=0.8, weighted_random_start=True)
+
+    # generator.generate_music_from_file_nanogpt(
+    #     input_filepath="nanoGPT/test0.txt",
+    #     output_file="test_gpt2.mid",
+    #     instrument=0,
+    #     lengths_flatten_factor=4,
+    # )
+
     # generator.generate_music_with_melody_ngrams(
     #     output_file="test1.mid",
     #     bars=40,
@@ -1266,24 +1295,24 @@ if __name__ == "__main__":
     #     # first_note="D",
     #     # tempo=80,
     #     lengths_flatten_factor=2,
-    #     only_chords=True,
+    #     # only_chords=True,
     #     # only_arpeggios=True,
-    #     more_chords=False,
+    #     more_chords=True,
     #     long_chords=False,
     # )
 
-    generator.generate_music_with_tuple_ngrams(
-        output_file="test2.mid",
-        bars=40,
-        instrument=0,
-        with_octave=True,
-        only_high_notes=False,
-        # first_note="G",
-        tempo=80,
-        lengths_flatten_factor=2,
-        # start_with_chord=True,
-        # velocity=80,
-    )
+    # generator.generate_music_with_tuple_ngrams(
+    #     output_file="test2.mid",
+    #     bars=40,
+    #     instrument=0,
+    #     with_octave=True,
+    #     only_high_notes=False,
+    #     # first_note="G",
+    #     tempo=80,
+    #     lengths_flatten_factor=2,
+    #     # start_with_chord=True,
+    #     # velocity=80,
+    # )
 
     # generator.generate_music_with_bar_ngrams(
     #     output_file="test3.mid",
@@ -1332,8 +1361,4 @@ if __name__ == "__main__":
     #     only_high_notes=False,
     #     # first_note="C",
     #     # lengths_flatten_factor=2
-    # )
-
-    # generator.generate_music_from_file_nanogpt(
-    #     input_filepath="nanoGPT/test0.txt", output_file="test_gpt2.mid", instrument=0
     # )

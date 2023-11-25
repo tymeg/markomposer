@@ -7,7 +7,6 @@ current_dir = os.path.dirname(__file__)
 project_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
 
 sys.path.append(project_dir)
-from gen_music import generator
 # from utils import ALL_NOTES_COUNT
 
 input_file_path = os.path.join(os.path.dirname(__file__), "input1.txt")
@@ -19,8 +18,8 @@ print(f"length of dataset in characters: {len(data):,}")
 # note note_length until_next_note_start separated by spaces
 # in specific format: e.g. I0 N60 L120
 input_values = data.split()
-print(f"length of dataset in notes: {len(input_values) // 3:,}")
-print(f"number of note lengths: {len(generator.note_lengths_range)}, number of interval lengths: {len(generator.until_next_note_range)}")
+print(f"approximate length of dataset in notes: {len(input_values) // 3:,}")
+# print(f"number of note lengths: {len(generator.note_lengths_range)}, number of interval lengths: {len(generator.until_next_note_range)}")
 
 # vocab consists of all valid values
 # notes = list(map(lambda note: "N" + str(note), range(ALL_NOTES_COUNT)))
@@ -38,6 +37,7 @@ print(f"number of note lengths: {len(generator.note_lengths_range)}, number of i
 # print(note_lengths)
 # print(until_next_note_starts)
 vocab = sorted(list(set(input_values)))
+print(vocab)
 
 vocab_size = len(vocab)
 print(f"vocab size: {vocab_size:,}")
@@ -60,8 +60,7 @@ def decode(tokens):
 
 # create the train and test splits
 n = len(input_values)
-# mod 3 = 0 because notes are 3 consecutive values
-border = int(n * 0.8)
+border = int(n * 0.7)
 train_data = input_values[: border]
 val_data = input_values[border :]
 
@@ -88,5 +87,5 @@ meta = {
     "itos": itos,
     "stoi": stoi,
 }
-with open(os.path.join(os.path.dirname(__file__), "meta.pkl"), "wb") as f:
+with open(os.path.join(os.path.dirname(__file__), "meta_2flat_4_4.pkl"), "wb") as f:
     pickle.dump(meta, f)
