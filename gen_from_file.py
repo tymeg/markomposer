@@ -24,7 +24,6 @@ mm = MarkovModel(
 )
 
 # generator = MusicGenerator(mm)
-
 # generator.generate_music_from_file_nanogpt(
 #     input_filepath="nanoGPT/test0.txt",
 #     output_file="test_gpt1.mid",
@@ -41,8 +40,8 @@ mm = MarkovModel(
 
 generator_4_4 = MusicGenerator(mm_4_4)
 generator_4_4.generate_music_from_file_nanogpt(
-    input_filepath="nanoGPT/test_2flat_4_4_0.txt",
-    output_file="test_gpt3.mid",
+    input_filepath="nanoGPT/test0.txt",
+    output_file="test_gpt4_4_4.mid",
     instrument=0,
     tempo=80,
 )

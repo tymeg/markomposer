@@ -1260,10 +1260,10 @@ if __name__ == "__main__":
         dir=True,
         pathname=pathname,
         merge_tracks=True,
-        ignore_bass=True,
+        ignore_bass=False,
         key="C",
         time_signature="4/4",
-        lengths_flatten_factor=2,
+        # lengths_flatten_factor=2,
     )
 
     if mm.processed_mids == 0:
@@ -1274,13 +1274,6 @@ if __name__ == "__main__":
     generator_greedy = MusicGenerator(mm, k=1, weighted_random_start=True)
     generator_k3 = MusicGenerator(mm, k=3)
     generator_p80 = MusicGenerator(mm, p=0.8, weighted_random_start=True)
-
-    # generator.generate_music_from_file_nanogpt(
-    #     input_filepath="nanoGPT/test0.txt",
-    #     output_file="test_gpt2.mid",
-    #     instrument=0,
-    #     lengths_flatten_factor=4,
-    # )
 
     # generator.generate_music_with_melody_ngrams(
     #     output_file="test1.mid",
@@ -1308,7 +1301,7 @@ if __name__ == "__main__":
     #     with_octave=True,
     #     only_high_notes=False,
     #     # first_note="G",
-    #     tempo=80,
+    #     # tempo=80,
     #     lengths_flatten_factor=2,
     #     # start_with_chord=True,
     #     # velocity=80,
@@ -1316,7 +1309,7 @@ if __name__ == "__main__":
 
     # generator.generate_music_with_bar_ngrams(
     #     output_file="test3.mid",
-    #     bars=40,
+    #     bars=80,
     #     instrument=0,
     #     with_octave=True,
     #     only_high_notes=False,

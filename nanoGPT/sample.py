@@ -5,6 +5,7 @@ import os
 import pickle
 from contextlib import nullcontext
 import torch
+from scipy.special import softmax
 
 # import tiktoken
 from model import GPTConfig, GPT
@@ -17,16 +18,16 @@ init_from = (
 )
 out_dir = "out"  # ignored if init_from is not 'resume'
 start = [
-    "START"
-    # "I480",
-    # "N67",
-    # "L480",
-    # "I480",
-    # "N65",
-    # "L480",
-    # "I0",
-    # "N60",
-    # "L480",
+    "START",
+    "I0",
+    "N81",
+    "L120",
+    "I0",
+    "N74",
+    "L120",
+    "I240",
+    "N77",
+    "L120",
 ]  # or "<|endoftext|>" or etc. Can also specify a file, use as: "FILE:prompt.txt"
 # start = " "
 num_samples = 1  # number of samples to draw
@@ -159,6 +160,8 @@ for k in range(num_samples):
         }
 
         ppbs = list(distribution.values())
+        # ppbs = softmax(ppbs)
+
         # normalize
         ppbs = np.array(ppbs, dtype="float64")
         ppbs /= ppbs.sum()

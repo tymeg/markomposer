@@ -15,7 +15,7 @@ with open(input_file_path, "r") as f:
     data = f.read()
 print(f"length of dataset in characters: {len(data):,}")
 
-# note note_length until_next_note_start separated by spaces
+# until_next_note_start note note_length separated by spaces
 # in specific format: e.g. I0 N60 L120
 input_values = data.split()
 print(f"approximate length of dataset in notes: {len(input_values) // 3:,}")
@@ -27,15 +27,6 @@ print(f"approximate length of dataset in notes: {len(input_values) // 3:,}")
 # until_next_note_starts = list(map(lambda length: "I" + str(length), generator.until_next_note_range))
 
 # vocab consists of values only from input_values
-# until_next_note_starts = sorted(list(set(input_values[::3])))
-# notes = sorted(list(set(input_values[1::3])))
-# note_lengths = sorted(list(set(input_values[2::3])))
-
-# vocab = notes + note_lengths + until_next_note_starts
-
-# print(notes)
-# print(note_lengths)
-# print(until_next_note_starts)
 vocab = sorted(list(set(input_values)))
 print(vocab)
 

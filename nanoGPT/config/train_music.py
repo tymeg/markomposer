@@ -2,7 +2,7 @@
 # good for debugging and playing on macbooks and such
 
 out_dir = 'out-music-2flat-4-4'
-eval_interval = 150 # keep frequent because we'll overfit
+eval_interval = 200 # keep frequent because we'll overfit
 eval_iters = 200
 log_interval = 10 # don't print too often
 
