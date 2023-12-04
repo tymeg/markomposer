@@ -17,18 +17,19 @@ init_from = (
     "resume"  # either 'resume' (from an out_dir) or a gpt2 variant (e.g. 'gpt2-xl')
 )
 out_dir = "out"  # ignored if init_from is not 'resume'
-start = [
-    "START",
-    "I0",
-    "N81",
-    "L120",
-    "I0",
-    "N74",
-    "L120",
-    "I240",
-    "N77",
-    "L120",
-]  # or "<|endoftext|>" or etc. Can also specify a file, use as: "FILE:prompt.txt"
+# start = [
+#     "START",
+#     # "I0",
+#     # "N81",
+#     # "L120",
+#     # "I0",
+#     # "N74",
+#     # "L120",
+#     # "I240",
+#     # "N77",
+#     # "L120",
+# ]  # or "<|endoftext|>" or etc. Can also specify a file, use as: "FILE:prompt.txt"
+start = "FILE:start.txt"
 # start = " "
 num_samples = 1  # number of samples to draw
 max_new_tokens = 2100  # number of tokens generated in each sample
@@ -94,7 +95,7 @@ if (
     and "config" in checkpoint
     and "dataset" in checkpoint["config"]
 ):  # older checkpoints might not have these...
-    meta_path = os.path.join("data", checkpoint["config"]["dataset"], "meta_2flat_4_4.pkl")
+    meta_path = os.path.join("data", checkpoint["config"]["dataset"], "meta.pkl")
     load_meta = os.path.exists(meta_path)
 if load_meta:
     print(f"Loading meta from {meta_path}...")
@@ -112,9 +113,9 @@ if load_meta:
 #     decode = lambda l: enc.decode(l)
 
 # encode the beginning of the prompt
-# if start.startswith('FILE:'):
-#     with open(start[5:], 'r', encoding='utf-8') as f:
-#         start = f.read()
+if start.startswith('FILE:'):
+    with open(start[5:], 'r', encoding='utf-8') as f:
+        start = f.read().split(" ")
 start_ids = encode(start)
 x = torch.tensor(start_ids, dtype=torch.long, device=device)[None, ...]
 

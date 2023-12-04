@@ -7,7 +7,7 @@ from itertools import permutations
 from typing import Dict
 
 import utils
-from markov import MarkovModel
+from markov import *
 
 
 class MusicGenerator:
@@ -116,8 +116,8 @@ class MusicGenerator:
                 ngrams = self.mm.melody_ngrams
                 nminus1grams = self.mm.melody_nminus1grams
             elif type == 1:
-                ngrams = self.mm.tuple_ngrams
-                nminus1grams = self.mm.tuple_nminus1grams
+                ngrams = self.mm.harmony_ngrams
+                nminus1grams = self.mm.harmony_nminus1grams
             elif type == 2:
                 ngrams = self.mm.bar_ngrams
                 nminus1grams = self.mm.bar_nminus1grams
@@ -133,8 +133,8 @@ class MusicGenerator:
                 ngrams = self.mm.melody_ngrams_without_octaves
                 nminus1grams = self.mm.melody_nminus1grams_without_octaves
             elif type == 1:
-                ngrams = self.mm.tuple_ngrams_without_octaves
-                nminus1grams = self.mm.tuple_nminus1grams_without_octaves
+                ngrams = self.mm.harmony_ngrams_without_octaves
+                nminus1grams = self.mm.harmony_nminus1grams_without_octaves
             elif type == 2:
                 ngrams = self.mm.bar_ngrams_without_octaves
                 nminus1grams = self.mm.bar_nminus1grams_without_octaves
@@ -243,8 +243,8 @@ class MusicGenerator:
                 nminus1grams = self.mm.melody_nminus1grams
                 starts_of_bar = self.mm.melody_nminus1gram_starts_of_bar
             elif type == 1:
-                nminus1grams = self.mm.tuple_nminus1grams
-                starts_of_bar = self.mm.tuple_nminus1gram_starts_of_bar
+                nminus1grams = self.mm.harmony_nminus1grams
+                starts_of_bar = self.mm.harmony_nminus1gram_starts_of_bar
             elif type == 2:
                 nminus1grams = self.mm.bar_nminus1grams
         else:
@@ -252,8 +252,8 @@ class MusicGenerator:
                 nminus1grams = self.mm.melody_nminus1grams_without_octaves
                 starts_of_bar = self.mm.melody_nminus1gram_without_octaves_starts_of_bar
             elif type == 1:
-                nminus1grams = self.mm.tuple_nminus1grams_without_octaves
-                starts_of_bar = self.mm.tuple_nminus1gram_without_octaves_starts_of_bar
+                nminus1grams = self.mm.harmony_nminus1grams_without_octaves
+                starts_of_bar = self.mm.harmony_nminus1gram_without_octaves_starts_of_bar
             elif type == 2:
                 nminus1grams = self.mm.bar_nminus1grams_without_octaves
         nminus1grams_keys = list(nminus1grams.keys())
@@ -360,7 +360,7 @@ class MusicGenerator:
     ) -> tuple[tuple[int], tuple[tuple[int]]]:
         if first_tuples:
             next_tuple = first_tuples.pop(0)
-            print(f"Chosen {next_tuple}")
+            # print(f"Chosen {next_tuple}")
         else:
             next_tuple = self.__choose_next_tuple(
                 prev_tuples, with_octave, only_high_notes, type
@@ -400,9 +400,9 @@ class MusicGenerator:
                     )
                     first_tuples.extend(prev_tuples)
                 next_tuple = first_tuples.pop(0)
-                print(f"Chosen {next_tuple}")
+                # print(f"Chosen {next_tuple}")
             else:
-                print(f"Chosen {next_tuple} after {prev_tuples}")
+                # print(f"Chosen {next_tuple} after {prev_tuples}")
                 prev_tuples = prev_tuples[1:] + (next_tuple,)
 
         if not with_octave:  # calculate specific note
@@ -483,7 +483,7 @@ class MusicGenerator:
     ) -> int:
         strong_beat_length = bar_length
         # simple time signatures
-        if beats_per_bar in [2, 4]:
+        if beats_per_bar in [2, 3, 4]:
             strong_beat_length //= beats_per_bar // 2
         # compound time signatures
         elif beats_per_bar in [6, 9, 12]:
@@ -578,6 +578,7 @@ class MusicGenerator:
             filtered_chord_ppbs = chord_ppbs
         return filtered_chord_ppbs
 
+    # METHOD 1
     def generate_music_with_melody_ngrams(
         self,
         output_file: str,
@@ -648,6 +649,8 @@ class MusicGenerator:
         chord_length = strong_beat_length if not long_chords else chord_frequency
         total_time = 0
         prev_note = -1
+        progress = tqdm(total=bars)
+        bar = 0
         while True:
             next_tuple, prev_tuples = self.__pick_tuple(
                 first_tuples,
@@ -707,6 +710,9 @@ class MusicGenerator:
                     time_in_strong_beat = 0
 
             total_time += offset
+            if total_time // bar_length > bar:
+                bar += 1
+                progress.update()
             if total_time // bar_length >= bars:
                 break
             if time_in_bar == 0 or (more_chords and note_start_in_strong_beat == 0):
@@ -729,7 +735,7 @@ class MusicGenerator:
                     ppbs = self.__normalize_ppbs(filtered_chord_ppbs)
                     # weighted random for now
                     chord = chords[np.random.choice(len(chords), p=ppbs)]
-                    print(f"Chosen chord {chord}")
+                    # print(f"Chosen chord {chord}")
 
                     if not with_octave:
                         if prev_chord is None:
@@ -821,8 +827,8 @@ class MusicGenerator:
         chord_messages = list(filter(lambda msg: msg[4] == 1, messages))
         self.__append_messages(chord_track, chord_messages)
 
-        new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
-        self.__print_track(output_file)
+        new_mid.save(os.path.join(os.getcwd(), output_file))
+        # self.__print_track(output_file)
 
     def __change_note_octave(self, note: int, chord: list[int], only_high_notes: bool):
         low_end = (
@@ -847,87 +853,8 @@ class MusicGenerator:
                 return None
         return note
 
-    def generate_music_with_bar_ngrams(
-        self,
-        output_file: str,
-        bars: int,
-        instrument: int,
-        velocity: int = utils.DEFAULT_VELOCITY,
-        with_octave: bool = True,
-        only_high_notes: bool = False,
-        first_note: str = None,
-        tempo: int = None,
-        start_with_chord: bool = False,
-    ) -> None:
-        new_mid = MidiFile(
-            type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
-        )  # one track
-        track = self.__start_track(new_mid, instrument, True)
-        self.__set_tempo(track, tempo)
-        self.__set_key(track)
-
-        bar_length = self.mm.main_bar_length
-        self.__set_time_signature(track)
-
-        ret = self.__first_nminus1_tuples(
-            with_octave, only_high_notes, 2, True, start_with_chord, first_note
-        )
-        if ret is None:
-            raise ValueError(f"Can't start with note {first_note}!")
-        prev_tuples, first_tuples = ret
-
-        messages = list()  # list of tuples (absolute start time, note, if_note_on, velocity, channel)
-        # ADDING MESSAGES LOOP
-        chord = set()
-        total_time = 0
-        prev_note, prev_time_in_bar = -1, -1
-        while True:
-            time_in_bar = total_time % bar_length
-            next_tuple, prev_tuples = self.__pick_tuple(
-                first_tuples,
-                prev_tuples,
-                with_octave,
-                only_high_notes,
-                prev_note,
-                2,
-                total_time % bar_length,
-                bar_length,
-                messages,
-            )
-            next_note, note_length, next_time_in_bar = next_tuple
-
-            if not with_octave:
-                # can return None
-                next_note = self.__change_note_octave(next_note, chord, only_high_notes)
-
-            if total_time // bar_length >= bars:
-                break
-            if next_note is not None and next_note not in chord:
-                messages.append((total_time, next_note, True, velocity, 0))
-                messages.append(
-                    (total_time + note_length, next_note, False, velocity, 0)
-                )
-                prev_note = next_note
-            else:
-                continue
-
-            if next_time_in_bar == prev_time_in_bar:
-                chord.add(next_note)
-            else:
-                chord = set({next_note})
-
-            if next_time_in_bar >= time_in_bar:
-                total_time += next_time_in_bar - time_in_bar
-            else:
-                total_time += bar_length + next_time_in_bar - time_in_bar
-            prev_time_in_bar = next_time_in_bar
-
-        self.__append_messages(track, messages)
-
-        new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
-        self.__print_track(output_file)
-
-    def generate_music_with_tuple_ngrams(
+    # METHOD 2
+    def generate_music_with_harmony_ngrams(
         self,
         output_file: str,
         bars: int,
@@ -940,6 +867,7 @@ class MusicGenerator:
         lengths_flatten_factor: int = None,
         start_with_chord: bool = False,
         strict_time_signature: bool = False,
+        start_filepath: str = None,
     ) -> None:
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
@@ -957,32 +885,49 @@ class MusicGenerator:
             )
             time_in_strong_beat = 0
 
-        ret = self.__first_nminus1_tuples(
-            with_octave, only_high_notes, 1, True, start_with_chord, first_note
-        )
-        if ret is None:
-            raise ValueError(f"Can't start with note {first_note}!")
-        prev_tuples, first_tuples = ret
+        if start_filepath:
+            with open(start_filepath, "r") as f:
+                first_tuples = list()
+                values = f.read().split()
+                values.pop(0) # skip START token
+                while values:
+                    first_tuples.append((int(values[1][1:]), int(values[2][1:]), int(values[0][1:])))
+                    for _ in range(3):
+                        values.pop(0)
+                prev_tuples = tuple(first_tuples[-(self.mm.n - 1):])
+        else:
+            ret = self.__first_nminus1_tuples(
+                with_octave, only_high_notes, 1, True, start_with_chord, first_note
+            )
+            if ret is None:
+                raise ValueError(f"Can't start with note {first_note}!")
+            prev_tuples, first_tuples = ret
 
         messages = (
             list()
         )  # list of tuples (absolute start time, note, if_note_on, velocity, channel)
+
         # ADDING MESSAGES LOOP
         total_time = 0
         prev_note = -1
         chord = set()
+        progress = tqdm(total=bars)
+        bar = 0
         while True:
-            next_tuple, prev_tuples = self.__pick_tuple(
-                first_tuples,
-                prev_tuples,
-                with_octave,
-                only_high_notes,
-                prev_note,
-                1,
-                total_time % bar_length,
-                bar_length,
-                messages,
-            )
+            if len(first_tuples) > self.mm.n - 1:
+                next_tuple = first_tuples.pop(0)
+            else:
+                next_tuple, prev_tuples = self.__pick_tuple(
+                    first_tuples,
+                    prev_tuples,
+                    with_octave,
+                    only_high_notes,
+                    prev_note,
+                    1,
+                    total_time % bar_length,
+                    bar_length,
+                    messages,
+                )
             next_note, note_length, until_next_note_start = next_tuple
             if lengths_flatten_factor is not None or self.mm.fixed_time_signature:
                 note_length, until_next_note_start = self.mm.round_time(
@@ -1035,6 +980,9 @@ class MusicGenerator:
                     until_next_note_start -= time_in_strong_beat - strong_beat_length
 
             total_time += offset
+            if total_time // bar_length > bar:
+                bar += 1
+                progress.update()
             if total_time // bar_length >= bars:
                 break
             if next_note not in chord:
@@ -1086,10 +1034,96 @@ class MusicGenerator:
 
         self.__append_messages(track, messages)
 
-        new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
-        self.__print_track(output_file)
+        new_mid.save(os.path.join(os.getcwd(), output_file))
+        # self.__print_track(output_file)
 
-    # very similar to previous method for now!
+    # METHOD 3
+    def generate_music_with_bar_ngrams(
+        self,
+        output_file: str,
+        bars: int,
+        instrument: int,
+        velocity: int = utils.DEFAULT_VELOCITY,
+        with_octave: bool = True,
+        only_high_notes: bool = False,
+        first_note: str = None,
+        tempo: int = None,
+        start_with_chord: bool = False,
+    ) -> None:
+        new_mid = MidiFile(
+            type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
+        )  # one track
+        track = self.__start_track(new_mid, instrument, True)
+        self.__set_tempo(track, tempo)
+        self.__set_key(track)
+
+        bar_length = self.mm.main_bar_length
+        self.__set_time_signature(track)
+
+        ret = self.__first_nminus1_tuples(
+            with_octave, only_high_notes, 2, True, start_with_chord, first_note
+        )
+        if ret is None:
+            raise ValueError(f"Can't start with note {first_note}!")
+        prev_tuples, first_tuples = ret
+
+        messages = list()  # list of tuples (absolute start time, note, if_note_on, velocity, channel)
+        # ADDING MESSAGES LOOP
+        chord = set()
+        total_time = 0
+        prev_note, prev_time_in_bar = -1, -1
+        progress = tqdm(total=bars)
+        bar = 0
+        while True:
+            time_in_bar = total_time % bar_length
+            next_tuple, prev_tuples = self.__pick_tuple(
+                first_tuples,
+                prev_tuples,
+                with_octave,
+                only_high_notes,
+                prev_note,
+                2,
+                total_time % bar_length,
+                bar_length,
+                messages,
+            )
+            next_note, note_length, next_time_in_bar = next_tuple
+
+            if not with_octave:
+                # can return None
+                next_note = self.__change_note_octave(next_note, chord, only_high_notes)
+
+            if total_time // bar_length > bar:
+                bar += 1
+                progress.update()
+            if total_time // bar_length >= bars:
+                break
+            if next_note is not None and next_note not in chord:
+                messages.append((total_time, next_note, True, velocity, 0))
+                messages.append(
+                    (total_time + note_length, next_note, False, velocity, 0)
+                )
+                prev_note = next_note
+            else:
+                continue
+
+            if next_time_in_bar == prev_time_in_bar:
+                chord.add(next_note)
+            else:
+                chord = set({next_note})
+
+            if next_time_in_bar >= time_in_bar:
+                total_time += next_time_in_bar - time_in_bar
+            else:
+                total_time += bar_length + next_time_in_bar - time_in_bar
+            prev_time_in_bar = next_time_in_bar
+
+        self.__append_messages(track, messages)
+
+        new_mid.save(os.path.join(os.getcwd(), output_file))
+        # self.__print_track(output_file)
+
+    # very similar to method 2 for now!
     def generate_music_from_file_nanogpt(
         self,
         input_filepath: str,
@@ -1130,13 +1164,14 @@ class MusicGenerator:
         # for tuple in tuples:
         # next_note, note_length, until_next_note_start = map(int, tuple.split(","))
         values.pop(0) # get rid of START
+        progress = tqdm()
         while values:
             until_next_note_start, next_note, note_length = (
                 int(values[0][1:]),
                 int(values[1][1:]),
                 int(values[2][1:]),
             )
-            for i in range(3):
+            for _ in range(3):
                 values.pop(0)
 
             if lengths_flatten_factor is not None or self.mm.fixed_time_signature:
@@ -1184,6 +1219,7 @@ class MusicGenerator:
 
             total_time += offset
             if next_note not in chord:
+                progress.update()
                 messages.append((total_time, next_note, True, velocity, 0))
                 messages.append(
                     (total_time + note_length, next_note, False, velocity, 0)
@@ -1231,127 +1267,5 @@ class MusicGenerator:
 
         self.__append_messages(track, messages)
 
-        new_mid.save(os.path.join(os.path.dirname(__file__), output_file))
-        self.__print_track(output_file)
-
-if __name__ == "__main__":
-    # parse arguments - will be expanded and moved to main file
-    n = 3
-    if n < 2:
-        raise ValueError("n must be >= 2!")
-
-    # single file
-    # pathname = "usa.mid"
-    # mm = MarkovModel(
-    #     n=n,
-    #     dir=False,
-    #     pathname=pathname,
-    #     merge_tracks=True,
-    #     ignore_bass=False,
-    #     # key="C",
-    #     time_signature="3/4",
-    #     # lengths_flatten_factor=2,
-    # )
-
-    # or dirname - e.g. -d or --dir flag
-    pathname = "big"
-    mm = MarkovModel(
-        n=n,
-        dir=True,
-        pathname=pathname,
-        merge_tracks=True,
-        ignore_bass=False,
-        key="C",
-        time_signature="4/4",
-        # lengths_flatten_factor=2,
-    )
-
-    if mm.processed_mids == 0:
-        raise ValueError("Couldn't process any mids! Try turning off key signature.")
-
-    generator = MusicGenerator(mm)
-    generator_uniform = MusicGenerator(mm, uniform=True)
-    generator_greedy = MusicGenerator(mm, k=1, weighted_random_start=True)
-    generator_k3 = MusicGenerator(mm, k=3)
-    generator_p80 = MusicGenerator(mm, p=0.8, weighted_random_start=True)
-
-    # generator.generate_music_with_melody_ngrams(
-    #     output_file="test1.mid",
-    #     bars=40,
-    #     instrument_melody=0,
-    #     instrument_harmony=0,
-    #     # melody_velocity=64,
-    #     # harmony_velocity=35,
-    #     with_octave=True,
-    #     only_high_notes_melody=False,
-    #     only_low_notes_harmony=False,
-    #     # first_note="D",
-    #     # tempo=80,
-    #     lengths_flatten_factor=2,
-    #     # only_chords=True,
-    #     # only_arpeggios=True,
-    #     more_chords=True,
-    #     long_chords=False,
-    # )
-
-    # generator.generate_music_with_tuple_ngrams(
-    #     output_file="test2.mid",
-    #     bars=40,
-    #     instrument=0,
-    #     with_octave=True,
-    #     only_high_notes=False,
-    #     # first_note="G",
-    #     # tempo=80,
-    #     lengths_flatten_factor=2,
-    #     # start_with_chord=True,
-    #     # velocity=80,
-    # )
-
-    # generator.generate_music_with_bar_ngrams(
-    #     output_file="test3.mid",
-    #     bars=80,
-    #     instrument=0,
-    #     with_octave=True,
-    #     only_high_notes=False,
-    #     # tempo=80,
-    #     # velocity=80,
-    # )
-
-    # # DIFFERENT SAMPLING METHODS
-    # generator_uniform.generate_music_with_tuple_ngrams(
-    #     output_file="test2_uniform.mid",
-    #     bars=40,
-    #     instrument=0,
-    #     with_octave=True,
-    #     only_high_notes=False,
-    #     # first_note="C",
-    #     # lengths_flatten_factor=2
-    # )
-
-    # generator_greedy.generate_music_with_tuple_ngrams(
-    #     output_file="test2_greedy.mid",
-    #     bars=20,
-    #     instrument=0,
-    #     with_octave=True,
-    #     only_high_notes=False,
-    #     first_note="D#",
-    # )
-
-    # generator_k3.generate_music_with_tuple_ngrams(
-    #     output_file="test2_k3.mid",
-    #     bars=40,
-    #     instrument=0,
-    #     with_octave=True,
-    #     only_high_notes=False,
-    #     # first_note="D",
-    # )
-
-    # generator_p80.generate_music_with_tuple_ngrams(
-    #     output_file="test2_p80.mid",
-    #     bars=40,
-    #     instrument=0,
-    #     with_octave=True,
-    #     only_high_notes=False,
-    #     # first_note="C",
-    #     # lengths_flatten_factor=2
-    # )
+        new_mid.save(os.path.join(os.getcwd(), output_file))
+        # self.__print_track(output_file)

@@ -1,5 +1,6 @@
 import os
 from mido import MidiFile, MetaMessage, tempo2bpm
+from tqdm import tqdm
 import math
 from typing import Dict
 
@@ -21,14 +22,14 @@ class MarkovModel:
         self.n = n  # n-grams
 
         # TUPLES (NOTE, NOTE LENGTH, TIME FROM START TO START OF NEXT) - MELODY WITH HARMONY
-        self.tuple_ngrams = dict()
-        self.tuple_nminus1grams = dict()
+        self.harmony_ngrams = dict()
+        self.harmony_nminus1grams = dict()
         # (NOTE, NOTE LENGTH, TIME FROM START TO START OF NEXT, IF NOTE PITCH GOES UP)
-        self.tuple_ngrams_without_octaves = dict()
-        self.tuple_nminus1grams_without_octaves = dict()
+        self.harmony_ngrams_without_octaves = dict()
+        self.harmony_nminus1grams_without_octaves = dict()
 
-        self.tuple_nminus1gram_starts_of_bar = set()
-        self.tuple_nminus1gram_without_octaves_starts_of_bar = set()
+        self.harmony_nminus1gram_starts_of_bar = set()
+        self.harmony_nminus1gram_without_octaves_starts_of_bar = set()
 
         # TUPLES (NOTE, NOTE LENGTH, TIME FROM END TO START OF NEXT) - MELODY
         self.melody_ngrams = dict()
@@ -137,7 +138,8 @@ class MarkovModel:
 
             self.__collect_mid_files(dir)
 
-            for mid in self.mids:
+            print("Processing input mid files and creating Markov model...")
+            for mid in tqdm(self.mids):
                 self.notes_list_file1.write("START ")
                 self.notes_list_file2.write("START ")
                 self.__process_mid_file(mid, merge_tracks, ignore_bass)
@@ -270,13 +272,13 @@ class MarkovModel:
             # for generate_with_tuple_ngrams
             self.__count_track_tuple_ngrams(
                 all_tuples,
-                self.tuple_ngrams,
-                self.tuple_ngrams_without_octaves,
-                self.tuple_nminus1grams,
-                self.tuple_nminus1grams_without_octaves,
+                self.harmony_ngrams,
+                self.harmony_ngrams_without_octaves,
+                self.harmony_nminus1grams,
+                self.harmony_nminus1grams_without_octaves,
                 starts_of_bar,
-                self.tuple_nminus1gram_starts_of_bar,
-                self.tuple_nminus1gram_without_octaves_starts_of_bar,
+                self.harmony_nminus1gram_starts_of_bar,
+                self.harmony_nminus1gram_without_octaves_starts_of_bar,
             )
             # for generate_with_bar_ngrams
             self.__count_track_tuple_ngrams(
@@ -304,7 +306,7 @@ class MarkovModel:
         if self.__current_key is None:
             return None
 
-        print(f"Inferred key: {self.__current_key}")
+        # print(f"Inferred key: {self.__current_key}")
         if self.main_key != self.__current_key:
             note_lengths = list(
                 map(
@@ -323,11 +325,11 @@ class MarkovModel:
     def __process_mid_file(
         self, mid: MidiFile, merge_tracks: bool, ignore_bass: bool
     ) -> int:
-        print(f"Mid's name: {mid.filename}")
-        print(f"Mid's length [sec]: {mid.length}")
-        print(f"File type: {mid.type}")
+        # print(f"Mid's name: {mid.filename}")
+        # print(f"Mid's length [sec]: {mid.length}")
+        # print(f"File type: {mid.type}")
 
-        print(f"Ticks per beat: {mid.ticks_per_beat}")
+        # print(f"Ticks per beat: {mid.ticks_per_beat}")
         # to count lengths properly
         ticks_per_beat_factor = utils.DEFAULT_TICKS_PER_BEAT / mid.ticks_per_beat
         # list of pairs: (start in total ticks, key)
@@ -353,7 +355,7 @@ class MarkovModel:
             note_lengths = list()
             currently_playing_notes_starts = dict()
 
-            print(f"Track {track_idx}: {track.name}")
+            # print(f"Track {track_idx}: {track.name}")
             for msg in track:
                 # print(msg)
                 total_time += msg.time
@@ -431,8 +433,8 @@ class MarkovModel:
                 if merge_tracks:
                     all_note_lengths += note_lengths
                     merged_tracks += 1
-                    if merged_tracks == utils.MAX_TRACKS_TO_MERGE:
-                        break  # ignore the rest or count them individually?
+                    # if merged_tracks == utils.MAX_TRACKS_TO_MERGE:
+                    #     break  # ignore the rest or count them individually?
                 else:
                     if (
                         self.main_key and not self.__current_key and first_notes_track
@@ -489,14 +491,14 @@ class MarkovModel:
                     ),
                 )
             )
-            print(
-                f"Time signature: {self.__current_beats_per_bar}/{self.__current_beat_value}"
-            )
+            # print(
+            #     f"Time signature: {self.__current_beats_per_bar}/{self.__current_beat_value}"
+            # )
         elif msg.type == "key_signature":
             self.__keys.append((total_time, msg.key))
-            print(f"Key: {msg.key}")
-        else:
-            print(msg)
+            # print(f"Key: {msg.key}")
+        # else:
+            # print(msg)
 
     def __extract_melody_and_chords(
         self, note_lengths: list[tuple[int, bool]]
@@ -508,7 +510,7 @@ class MarkovModel:
 
         # in each box we have notes which play in that time frame of length_precision:
         # (note, start, note_length)
-        boxes = [list() for i in range(end_time // self.length_precision + 1)]
+        boxes = [list() for _ in range(end_time // self.length_precision + 1)]
         for start, note_length, note, start_of_bar, time_in_bar in note_lengths:
             for box_idx in range(
                 start // self.length_precision,
