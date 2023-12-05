@@ -334,7 +334,7 @@ if ":" in args.length:
     else:
         beats_per_bar, beat_value = time_signature.split("/")
         ticks_per_bar = beats_per_bar * (utils.DEFAULT_TICKS_PER_BEAT / (beat_value / 4))
-    bars = ticks // ticks_per_bar
+    bars = math.ceil(ticks / ticks_per_bar)
 else:
     bars = int(args.length)
 tempo = tempo2bpm(tempo)
@@ -397,7 +397,7 @@ try:
     pygame.mixer.music.load(new_mid_path)
     pygame.mixer.music.play()
     while pygame.mixer.music.get_busy():
-        clock.tick(30)
+        clock.tick(60)
 except KeyboardInterrupt:
     pygame.mixer.music.fadeout(1000)
     pygame.mixer.music.stop()

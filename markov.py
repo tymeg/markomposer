@@ -138,7 +138,7 @@ class MarkovModel:
 
             self.__collect_mid_files(dir)
 
-            print("Processing input mid files and creating Markov model...")
+            print("Processing mid tracks and creating Markov model...")
             for mid in tqdm(self.mids):
                 self.notes_list_file1.write("START ")
                 self.notes_list_file2.write("START ")
@@ -158,8 +158,9 @@ class MarkovModel:
             # print(dict(sorted(self.chords_without_octaves.items(), key=lambda item: item[1], reverse=True)))
 
     def __collect_mid_files(self, dir: bool) -> None:
+        print("Collecting and parsing mid files...")
         if dir:
-            for filename in os.listdir(self.path):
+            for filename in tqdm(os.listdir(self.path)):
                 file = os.path.join(self.path, filename)
                 if (
                     os.path.isfile(file)
