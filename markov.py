@@ -18,6 +18,7 @@ class MarkovModel:
         key: str = None,
         time_signature: str = None,
         lengths_flatten_factor: int = None,
+        allow_major_minor_transpositions: bool = False,
     ) -> None:
         self.n = n  # n-grams
 
@@ -120,16 +121,21 @@ class MarkovModel:
         self.main_key = key
         self.__current_key = None
         self.__keys = list()
+        self.__allow_major_minor_transpositons = allow_major_minor_transpositions
 
         if pathname is not None:
             self.path = os.path.join(os.getcwd(), pathname)  # CWD
             # self.path = os.path.join(os.path.dirname(__file__), pathname) # directory of markov.py
             self.notes_list_file1 = open(
-                os.path.join(os.path.dirname(__file__), "nanoGPT/data/music/input1.txt"),
+                os.path.join(
+                    os.path.dirname(__file__), "nanoGPT/data/music/input1.txt"
+                ),
                 "w",
             )
             self.notes_list_file2 = open(
-                os.path.join(os.path.dirname(__file__), "nanoGPT/data/music/input2.txt"),
+                os.path.join(
+                    os.path.dirname(__file__), "nanoGPT/data/music/input2.txt"
+                ),
                 "w",
             )
 
@@ -238,7 +244,7 @@ class MarkovModel:
                 )
             )
             starts_of_bar = list(map(lambda tpl: tpl[3], note_lengths))
-            
+
             # always floor
             rounded_times_in_bar = list(
                 map(
@@ -314,7 +320,12 @@ class MarkovModel:
                     lambda tpl: (
                         tpl[0],
                         tpl[1],
-                        utils.transpose(tpl[2], self.__current_key, self.main_key),
+                        utils.transpose(
+                            tpl[2],
+                            self.__current_key,
+                            self.main_key,
+                            self.__allow_major_minor_transpositons,
+                        ),
                         tpl[3],
                         tpl[4],
                     ),
@@ -413,7 +424,10 @@ class MarkovModel:
                                     and self.main_key != self.__current_key
                                 ):
                                     note = utils.transpose(
-                                        note, self.__current_key, self.main_key
+                                        note,
+                                        self.__current_key,
+                                        self.main_key,
+                                        self.__allow_major_minor_transpositons,
                                     )
                                 note_lengths.append(
                                     (
@@ -499,7 +513,7 @@ class MarkovModel:
             self.__keys.append((total_time, msg.key))
             # print(f"Key: {msg.key}")
         # else:
-            # print(msg)
+        # print(msg)
 
     def __extract_melody_and_chords(
         self, note_lengths: list[tuple[int, bool]]

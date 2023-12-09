@@ -13,7 +13,7 @@ UNTIL_NEXT_CHORD = 1
 # MAX_TRACKS_TO_MERGE = 10
 
 DRUM_CHANNEL = 9
-PERCUSSIVE_INSTRUMENTS = 112 # from
+PERCUSSIVE_INSTRUMENTS = 112  # from
 BASS = range(32, 40)
 
 HIGH_NOTES_OCTAVE_THRESHOLD = 3
@@ -49,7 +49,7 @@ KEY_SIGNATURES = [  # from mido docs - necessary?
     "Ebm",
     "Em",
     "F",
-    "F#",   
+    "F#",
     "F#m",
     "Fm",
     "G",
@@ -162,11 +162,24 @@ def get_key_notes(key: str) -> list[str]:
     return key_notes
 
 
-def transpose(note: int, from_key: str, to_key: str) -> str:
+def transpose(
+    note: int, from_key: str, to_key: str, allow_major_minor_transpositions: bool
+) -> str:
     from_tonic_note = get_tonic_note(from_key)
     to_tonic_note = get_tonic_note(to_key)
-
     diff = get_note_index(to_tonic_note) - get_note_index(from_tonic_note)
+    
+    if not allow_major_minor_transpositions:
+        if is_minor(from_key) and not is_minor(to_key):
+            diff -= 3
+        elif not is_minor(from_key) and is_minor(to_key):
+            diff += 3
+        if abs(diff) >= 12:
+            if diff < 0:
+                diff %= -12
+            else:
+                diff %= 12
+
     if get_note_octave(note) == LOWEST_USED_OCTAVE:  # transpose up
         if diff < 0:
             diff += 12
@@ -175,8 +188,10 @@ def transpose(note: int, from_key: str, to_key: str) -> str:
             diff -= 12
     transposed_note = note + diff
 
-    if get_note_name(note) in get_key_notes(from_key) and (
-        is_minor(from_key) is not is_minor(to_key)
+    if (
+        get_note_name(note) in get_key_notes(from_key)
+        and allow_major_minor_transpositions
+        and (is_minor(from_key) is not is_minor(to_key))
     ):
         temp_key = to_key[:-1] if is_minor(to_key) else to_key + "m"
         if get_key_notes(temp_key).index(get_note_name(transposed_note)) in [2, 5, 6]:

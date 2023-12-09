@@ -235,7 +235,6 @@ class MusicGenerator:
         only_high_notes: bool,
         type: int,
         start_of_bar: bool = None,
-        start_with_chord: bool = False,
         first_note: int | str = None,
     ) -> tuple[tuple[tuple[int | str]], list[tuple[int | str]]] | None:
         if with_octave:
@@ -272,21 +271,6 @@ class MusicGenerator:
                 nminus1grams_keys = list(
                     filter(
                         lambda nminus1gram: nminus1gram[0][2] == 0, nminus1grams_keys
-                    )
-                )
-
-        if start_with_chord:
-            if type == 1:
-                nminus1grams_keys = list(
-                    filter(
-                        lambda nminus1gram: nminus1gram[0][2] == 0, nminus1grams_keys
-                    )
-                )
-            elif type == 2 and len(nminus1grams_keys[0]) >= 2:
-                nminus1grams_keys = list(
-                    filter(
-                        lambda nminus1gram: nminus1gram[0][2] == nminus1gram[1][2],
-                        nminus1grams_keys,
                     )
                 )
 
@@ -906,7 +890,6 @@ class MusicGenerator:
         first_note: str = None,
         tempo: int = None,
         lengths_flatten_factor: int = None,
-        start_with_chord: bool = False,
         strict_time_signature: bool = False,
         start_filepath: str = None,
         end_on_tonic: bool = False,
@@ -941,7 +924,7 @@ class MusicGenerator:
                 prev_tuples = tuple(first_tuples[-(self.mm.n - 1) :])
         else:
             ret = self.__first_nminus1_tuples(
-                with_octave, only_high_notes, 1, True, start_with_chord, first_note
+                with_octave, only_high_notes, 1, True, first_note
             )
             if ret is None:
                 raise ValueError(f"Can't start with note {first_note}!")
@@ -1104,7 +1087,6 @@ class MusicGenerator:
         only_high_notes: bool = False,
         first_note: str = None,
         tempo: int = None,
-        start_with_chord: bool = False,
         end_on_tonic: bool = False,
     ) -> None:
         new_mid = MidiFile(
@@ -1118,7 +1100,7 @@ class MusicGenerator:
         self._set_time_signature(track)
 
         ret = self.__first_nminus1_tuples(
-            with_octave, only_high_notes, 2, True, start_with_chord, first_note
+            with_octave, only_high_notes, 2, True, first_note
         )
         if ret is None:
             raise ValueError(f"Can't start with note {first_note}!")

@@ -19,7 +19,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "method",
-    choices=[1, 2, 3, "all"],
+    choices=['1', '2', '3', "all"],
     help="generating method:\n"
     '1 - "melody n-grams" - melody from Markov chain, later harmonized with chords/arpeggios (2 tracks)\n'
     '2 - "harmony n-grams" - melody and harmony from Markov chain (notes with distances between them) (1 track)\n'
@@ -49,7 +49,8 @@ parser.add_argument(
     "--time-signature",
     help=f"b/v where b in {beats_per_bar} and v in {beat_values}\n"
     "Default: 4/4 in methods 1 and 3, doesn't force any time signature in method 2.\n"
-    "Note: can work imperfectly. Also, when using 3. generating method,\n"
+    "Note: can work imperfectly. If method 2 gives bad output,\n"
+    "consider turning time signature off or using other method. Also, when using 3. generating method,\n"
     "specify time signature common for most input files!",
 )
 
@@ -58,11 +59,13 @@ parser.add_argument(
     "-k",
     "--key-signature",
     choices=utils.KEY_SIGNATURES,
-    help="Can help Markov wander more freely between fragments of different tracks.\n"
+    help="Tracks are transposed to specified key (or relative major/minor to it -\n"
+    "use --allow-major-minor-transpositions if you don't want it).\n" 
+    "Can help Markov wander more freely between fragments of different tracks.\n"
     "Default: doesn't force any key signature.\n"
     "Note: this doesn't work strictly - notes outside of scale can appear.\n"
     "Also, can be quirky if input mids haven't got key encoded/have multiple keys/wrong key encoding\n"
-    "or are neither major nor minor.",
+    "or are neither major nor minor.\n",
 )
 
 # tempo
@@ -86,6 +89,17 @@ parser.add_argument(
     action="store_true",
     help="end generated music on tonic chord (resolving tension)\n"
     "Note: key signature must be specified.",
+    default=False,
+)
+
+# allow major-minor transpositions
+parser.add_argument(
+    "-am",
+    "--allow-major-minor-transpositions",
+    action="store_true",
+    help="allow transposing tracks between major and minor\n"
+    "Note: can change the 'mood' of fragments of some tracks.\n"
+    "Default: false - transposes to relative major/minor scale.",
     default=False,
 )
 
@@ -290,15 +304,6 @@ harmony_and_bar_ngrams_optionals.add_argument(
     default=False,
 )
 
-# start with chord
-harmony_and_bar_ngrams_optionals.add_argument(
-    "-sc",
-    "--start-with-chord",
-    action="store_true",
-    help="generated track starts with a chord",
-    default=False,
-)
-
 # --------------------------------------- PARSING -------------------------------------
 try:
     args = parser.parse_args()
@@ -308,6 +313,9 @@ try:
     dir = not (args.input_path[-4:] == ".mid")
     merge_tracks = not args.no_merge
     with_octave = not args.without_octaves
+
+    if args.method != "all":
+        args.method = int(args.method)
 
     if args.end_on_tonic and not args.key_signature:
         raise ValueError("With --end-on-tonic option you must provide key signature!")
@@ -324,6 +332,7 @@ try:
         key=args.key_signature,
         time_signature=args.time_signature,
         lengths_flatten_factor=args.flatten_before,
+        allow_major_minor_transpositions=args.allow_major_minor_transpositions,
     )
 
     if mm.processed_mids == 0:
@@ -404,7 +413,6 @@ try:
             first_note=args.first_note,
             tempo=tempo,
             lengths_flatten_factor=args.flatten_after,
-            start_with_chord=args.start_with_chord,
             strict_time_signature=args.strict_time_signature,
             start_filepath=args.start_filepath,
             end_on_tonic=args.end_on_tonic,
@@ -421,7 +429,6 @@ try:
             only_high_notes=args.only_high_notes,
             first_note=args.first_note,
             tempo=tempo,
-            start_with_chord=args.start_with_chord,
             end_on_tonic=args.end_on_tonic,
         )
 
