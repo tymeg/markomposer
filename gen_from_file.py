@@ -1,6 +1,9 @@
 from gen_music import *
 
 class FromFileMusicGenerator(MusicGenerator):
+    def __init__(self, mm):
+        self.mm = mm
+    
     # very similar to method 2 for now!
     def generate_music_from_file_nanogpt(
         self,
@@ -15,15 +18,15 @@ class FromFileMusicGenerator(MusicGenerator):
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
         )  # one track
-        track = self.__start_track(new_mid, instrument, True)
-        self.__set_tempo(track, tempo)
-        self.__set_key(track)
+        track = super()._start_track(new_mid, instrument, True)
+        super()._set_tempo(track, tempo)
+        super()._set_key(track)
 
         in_time_signature = self.mm.fixed_time_signature
         bar_length = self.mm.main_bar_length
         if in_time_signature:
-            beats_per_bar, _ = self.__set_time_signature(track)
-            strong_beat_length = self.__calculate_strong_beat_length(
+            beats_per_bar, _ = super()._set_time_signature(track)
+            strong_beat_length = super()._calculate_strong_beat_length(
                 bar_length, beats_per_bar
             )
             time_in_strong_beat = 0
@@ -42,7 +45,6 @@ class FromFileMusicGenerator(MusicGenerator):
         # for tuple in tuples:
         # next_note, note_length, until_next_note_start = map(int, tuple.split(","))
         values.pop(0) # get rid of START
-        progress = tqdm()
         while values:
             until_next_note_start, next_note, note_length = (
                 int(values[0][1:]),
@@ -97,7 +99,6 @@ class FromFileMusicGenerator(MusicGenerator):
 
             total_time += offset
             if next_note not in chord:
-                progress.update()
                 messages.append((total_time, next_note, True, velocity, 0))
                 messages.append(
                     (total_time + note_length, next_note, False, velocity, 0)
@@ -143,10 +144,10 @@ class FromFileMusicGenerator(MusicGenerator):
 
             total_time += until_next_note_start
 
-        self.__append_messages(track, messages)
+        super()._append_messages(track, messages)
 
         new_mid.save(os.path.join(os.getcwd(), output_file))
-        # self.__print_track(output_file)
+        # super().__print_track(output_file)
 
 mm_4_4 = MarkovModel(
     n=3,

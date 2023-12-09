@@ -143,7 +143,7 @@ def get_tonic_note(key: str) -> str:
     return flat_to_sharp(tonic_note)
 
 
-def get_key_notes(key: str) -> str:
+def get_key_notes(key: str) -> list[str]:
     key_notes = list()
 
     minor = is_minor(key)
