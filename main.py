@@ -15,12 +15,11 @@ parser = argparse.ArgumentParser(
 
 # -------------------------------- REQUIRED ARGUMENTS ------------------------------------
 parser.add_argument(
-    "input_path", help="path to input .mid file or directory with .mid files"
+    "input_path", help="path to input .mid file (ending with .mid) or directory with .mid files"
 )
 parser.add_argument(
     "method",
-    choices=[1, 2, 3],
-    type=int,
+    choices=[1, 2, 3, "all"],
     help="generating method:\n"
     '1 - "melody n-grams" - melody from Markov chain, later harmonized with chords/arpeggios (2 tracks)\n'
     '2 - "harmony n-grams" - melody and harmony from Markov chain (notes with distances between them) (1 track)\n'
@@ -28,7 +27,9 @@ parser.add_argument(
     "Methods 1 and 3 always generate in time signature (default: 4/4), method 2 only when specified.\n"
     "Best use 3 when most/all input mids are in the same time signature (and have multiple instruments, e.g. pop music).\n"
     "2 is better for single instrument mids in different time signatures (e.g. classical piano music).\n"
-    "You can always use 1, but it can generate music a bit less similar to input mids than methods 2 and 3.",
+    "You can always use 1, but it can generate music a bit less similar to input mids than methods 2 and 3.\n\n"
+    "Specifying 'all' will generate and play 3 songs (named ..._1.mid, ..._2.mid, ..._3.mid),\n"
+    "every time using specified options, suitable for current method."
 )
 parser.add_argument(
     "length",
@@ -311,7 +312,7 @@ try:
     if args.end_on_tonic and not args.key_signature:
         raise ValueError("With --end-on-tonic option you must provide key signature!")
 
-    if args.method == 3 and args.flatten_before:
+    if (args.method == 3 or args.method == "all") and args.flatten_before:
         args.flatten_before = None
 
     mm = MarkovModel(
@@ -339,6 +340,9 @@ try:
     output_file = args.output_filename
     if args.output_filename[-4:] != ".mid":
         output_file += ".mid"
+    if args.method == "all":
+        name = output_file.split(".")[0]
+        output_files = [name + "_1.mid", name + "_2.mid", name + "_3.mid"]
 
     if args.tempo:
         tempo = bpm2tempo(args.tempo)
@@ -365,7 +369,9 @@ try:
     tempo = tempo2bpm(tempo)
 
     print("Generating music...")
-    if args.method == 1:
+    if args.method == 1 or args.method == "all":
+        if args.method == "all":
+            output_file = output_files[0]
         generator.generate_music_with_melody_ngrams(
             output_file=output_file,
             bars=bars,
@@ -385,7 +391,9 @@ try:
             long_chords=args.long_chords,
             end_on_tonic=args.end_on_tonic,
         )
-    elif args.method == 2:
+    if args.method == 2 or args.method == "all":
+        if args.method == "all":
+            output_file = output_files[1]
         generator.generate_music_with_harmony_ngrams(
             output_file=output_file,
             bars=bars,
@@ -401,7 +409,9 @@ try:
             start_filepath=args.start_filepath,
             end_on_tonic=args.end_on_tonic,
         )
-    else:
+    if args.method == 3 or args.method == "all":
+        if args.method == "all":
+            output_file = output_files[2]
         generator.generate_music_with_bar_ngrams(
             output_file=output_file,
             bars=bars,
@@ -416,20 +426,23 @@ try:
         )
 
     # ---------------------------- PLAY MUSIC --------------------------------------
-    print("----------------------")
-    print(f"File saved as {output_file}.\nPlaying music... Ctrl+C to stop", end="")
-    new_mid_path = os.path.join(os.getcwd(), output_file)
-    pygame.mixer.init(44100, -16, 2, 1024)
-    try:
-        clock = pygame.time.Clock()
-        pygame.mixer.music.load(new_mid_path)
-        pygame.mixer.music.play()
-        while pygame.mixer.music.get_busy():
-            clock.tick(60)
-    except KeyboardInterrupt:
-        pygame.mixer.music.fadeout(1000)
-        pygame.mixer.music.stop()
-        raise SystemExit
+    if args.method != "all":
+        output_files = [output_file]
+    for output_file in output_files:
+        print("----------------------")
+        print(f"File saved as {output_file}.\nPlaying music... Ctrl+C to stop")
+        new_mid_path = os.path.join(os.getcwd(), output_file)
+        pygame.mixer.init(44100, -16, 2, 1024)
+        try:
+            clock = pygame.time.Clock()
+            pygame.mixer.music.load(new_mid_path)
+            pygame.mixer.music.play()
+            while pygame.mixer.music.get_busy():
+                clock.tick(60)
+        except KeyboardInterrupt:
+            pygame.mixer.music.fadeout(1000)
+            pygame.mixer.music.stop()
+            raise SystemExit
 
 except ValueError as e:
     print(e)
