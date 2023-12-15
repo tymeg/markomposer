@@ -1,3 +1,5 @@
+from typing import List
+
 DEFAULT_TICKS_PER_BEAT = 480
 TICKS_PER_32NOTE = DEFAULT_TICKS_PER_BEAT // 8
 DEFAULT_BEATS_PER_BAR = 4
@@ -117,21 +119,20 @@ def get_note_name_with_octave(note: int) -> str:
 
 
 def flat_to_sharp(note: str) -> str:
-    match note:
-        case "Cb":
-            return "B"
-        case "Db":
-            return "C#"
-        case "Eb":
-            return "D#"
-        case "Gb":
-            return "F#"
-        case "Ab":
-            return "G#"
-        case "Bb":
-            return "A#"
-        case _:
-            return note
+    if note == "Cb":
+        return "B"
+    elif note == "Db":
+        return "C#"
+    elif note == "Eb":
+        return "D#"
+    elif note == "Gb":
+        return "F#"
+    elif note == "Ab":
+        return "G#"
+    elif note == "Bb":
+        return "A#"
+    else:
+        return note
 
 
 def is_minor(key: str) -> bool:
@@ -143,7 +144,7 @@ def get_tonic_note(key: str) -> str:
     return flat_to_sharp(tonic_note)
 
 
-def get_key_notes(key: str) -> list[str]:
+def get_key_notes(key: str) -> List[str]:
     key_notes = list()
 
     minor = is_minor(key)
@@ -204,7 +205,7 @@ def transpose(
 
 
 # can work quite properly only if there are no key changes in the song!
-def infer_key(all_notes: list[str]) -> str:
+def infer_key(all_notes: List[str]) -> str:
     counts = {note: 0 for note in NOTES}
     for note in all_notes:
         counts[note] += 1

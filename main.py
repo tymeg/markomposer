@@ -26,10 +26,10 @@ parser.add_argument(
     '3 - "bar n-grams" - melody and harmony from Markov chain (notes with positions in bar) (1 track)\n\n'
     "Methods 1 and 3 always generate in time signature (default: 4/4), method 2 only when specified.\n"
     "Best use 3 when most/all input mids are in the same time signature (and have multiple instruments, e.g. pop music).\n"
-    "2 is better for single instrument mids in different time signatures (e.g. classical piano music).\n"
+    "2 is (usually) better for single instrument mids in different time signatures (e.g. classical piano music).\n"
     "You can always use 1, but it can generate music a bit less similar to input mids than methods 2 and 3.\n\n"
     "Specifying 'all' will generate and play 3 songs (named ..._1.mid, ..._2.mid, ..._3.mid),\n"
-    "every time using specified options, suitable for current method."
+    "every time using different method and specified options, suitable for current method."
 )
 parser.add_argument(
     "length",
@@ -61,7 +61,7 @@ parser.add_argument(
     choices=utils.KEY_SIGNATURES,
     help="Tracks are transposed to specified key (or relative major/minor to it -\n"
     "use --allow-major-minor-transpositions if you don't want it).\n" 
-    "Can help Markov wander more freely between fragments of different tracks.\n"
+    "Can help Markov wander more freely between fragments of different tracks. Harmony is prettier too.\n"
     "Default: doesn't force any key signature.\n"
     "Note: this doesn't work strictly - notes outside of scale can appear.\n"
     "Also, can be quirky if input mids haven't got key encoded/have multiple keys/wrong key encoding\n"
@@ -268,7 +268,8 @@ melody_and_harmony_ngrams_optionals.add_argument(
     "--flatten-after",
     type=int,
     choices=[2, 4, 8],
-    help='factor by which 32th note length precision is multiplied after creating model, during generation. It "unifies" tempo.',
+    help='factor by which 32th note length precision is multiplied after creating model, during generation. It "unifies" tempo.\n'
+    'Using at least 2 is recommended for input mids diverse in time signature and tempo.',
 )
 
 

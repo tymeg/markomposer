@@ -4,7 +4,7 @@ import numpy as np
 import random
 import math
 from itertools import permutations
-from typing import Dict
+from numpy.typing import NDArray 
 
 import utils
 from markov import *
@@ -41,8 +41,8 @@ class MusicGenerator:
         ppbs: Dict[tuple, float],
         ngrams: Dict[tuple, int],
         nminus1gram_count: int,
-        prev: tuple,
-        value: tuple,
+        prev: Tuple,
+        value: Tuple,
     ) -> None:
         ngram = prev + (value,)
         ngram_count = ngrams.get(ngram)
@@ -54,7 +54,7 @@ class MusicGenerator:
         else:
             ppbs[value] = 0.0
 
-    def __normalize_ppbs(self, ppbs: Dict[tuple, float]) -> np.ndarray[float]:
+    def __normalize_ppbs(self, ppbs: Dict[tuple, float]) -> NDArray[np.float64]:
         # make list only of ppbs
         ppbs = list(ppbs.values())
 
@@ -95,11 +95,11 @@ class MusicGenerator:
 
     def __choose_next_tuple(
         self,
-        prev_tuples: tuple[tuple[int] | tuple[int, bool]],
+        prev_tuples: Tuple[Tuple[int] | Tuple[int, bool]],
         with_octave: bool,
         only_high_notes: bool,
         type: int,
-    ) -> tuple[int] | None:
+    ) -> Tuple[int] | None:
         if len(prev_tuples) != self.mm.n - 1:
             raise ValueError("With n-gram there has to be n-1 previous notes!")
 
@@ -236,7 +236,7 @@ class MusicGenerator:
         type: int,
         start_of_bar: bool = None,
         first_note: int | str = None,
-    ) -> tuple[tuple[tuple[int | str]], list[tuple[int | str]]] | None:
+    ) -> Tuple[Tuple[Tuple[int | str]], List[Tuple[int | str]]] | None:
         if with_octave:
             if type == 0:
                 nminus1grams = self.mm.melody_nminus1grams
@@ -334,16 +334,16 @@ class MusicGenerator:
 
     def __pick_tuple(
         self,
-        first_tuples: list[tuple[int]],
-        prev_tuples: tuple[tuple[int]],
+        first_tuples: List[Tuple[int]],
+        prev_tuples: Tuple[Tuple[int]],
         with_octave: bool,
         only_high_notes: bool,
         prev_note: int,
         type: int,
         time_in_bar: int,
         bar_length: int,
-        messages: list[tuple[int, bool]] = None,
-    ) -> tuple[tuple[int], tuple[tuple[int]]]:
+        messages: List[Tuple[int, bool]] = None,
+    ) -> Tuple[Tuple[int], Tuple[Tuple[int]]]:
         if first_tuples:
             next_tuple = first_tuples.pop(0)
             # print(f"Chosen {next_tuple}")
@@ -443,7 +443,7 @@ class MusicGenerator:
         if key is not None:
             track.append(MetaMessage("key_signature", key=key))
 
-    def _set_time_signature(self, track: MidiTrack) -> tuple[int]:
+    def _set_time_signature(self, track: MidiTrack) -> Tuple[int]:
         beats_per_bar, beat_value = self.mm.main_beats_per_bar, self.mm.main_beat_value
         track.append(
             MetaMessage(
@@ -479,7 +479,7 @@ class MusicGenerator:
     def _add_tonic_chord(
         self,
         prev_chord: set[int],
-        messages: list[tuple],
+        messages: List[tuple],
         end_of_chord: bool,
         total_time: int,
         bar_length: int,
@@ -502,7 +502,7 @@ class MusicGenerator:
                     (total_time + bar_length, note, False, velocity, channel)
                 )
 
-    def _append_messages(self, track: MidiTrack, messages: list[tuple]) -> None:
+    def _append_messages(self, track: MidiTrack, messages: List[tuple]) -> None:
         # sort messages by start time, append them to track
         messages.sort()
         prev_abs_time = 0
@@ -534,7 +534,7 @@ class MusicGenerator:
     def __filter_chords(
         self,
         chord_ppbs: Dict[tuple, float],
-        prev_chord: tuple[int],
+        prev_chord: Tuple[int],
         melody_note: int,
         with_octave: bool,
         only_low_notes: bool,
@@ -855,7 +855,7 @@ class MusicGenerator:
         new_mid.save(os.path.join(os.getcwd(), output_file))
         # self.__print_track(output_file)
 
-    def __change_note_octave(self, note: int, chord: list[int], only_high_notes: bool):
+    def __change_note_octave(self, note: int, chord: List[int], only_high_notes: bool):
         low_end = (
             utils.HIGH_NOTES_OCTAVE_THRESHOLD
             if only_high_notes

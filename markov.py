@@ -2,7 +2,7 @@ import os
 from mido import MidiFile, MetaMessage, tempo2bpm
 from tqdm import tqdm
 import math
-from typing import Dict
+from typing import List, Tuple, Dict
 
 import utils
 
@@ -212,7 +212,7 @@ class MarkovModel:
             rounded_length = self.max_length
         return rounded_length
 
-    def __count_all(self, note_lengths: list[tuple[int, bool]]) -> None:
+    def __count_all(self, note_lengths: List[Tuple[int, bool]]) -> None:
         if note_lengths:
             note_lengths = list(set(note_lengths))
             note_lengths.sort()
@@ -306,8 +306,8 @@ class MarkovModel:
                 )
 
     def __transpose_track(
-        self, note_lengths: list[tuple[int, bool]]
-    ) -> list[tuple[int]]:
+        self, note_lengths: List[Tuple[int, bool]]
+    ) -> List[Tuple[int]]:
         notes_str = list(map(lambda tpl: utils.get_note_name(tpl[2]), note_lengths))
         self.__current_key = utils.infer_key(notes_str)
         if self.__current_key is None:
@@ -516,8 +516,8 @@ class MarkovModel:
         # print(msg)
 
     def __extract_melody_and_chords(
-        self, note_lengths: list[tuple[int, bool]]
-    ) -> tuple[list[int], bool]:
+        self, note_lengths: List[Tuple[int, bool]]
+    ) -> Tuple[List[int], bool]:
         # assumes melody is the sequence of single notes with highest pitch of all playing
 
         end_time = note_lengths[-1][0] + note_lengths[-1][1]
@@ -624,14 +624,14 @@ class MarkovModel:
 
     def __count_track_tuple_ngrams(
         self,
-        tuples: list[tuple[int]],
-        ngrams: list[tuple[int]],
-        ngrams_without_octaves: list[tuple[str, int, bool]],
-        nminus1grams: list[tuple[int]],
-        nminus1grams_without_octaves: list[tuple[str, int, bool]],
-        starts_of_bar: list[bool] = None,
-        nminus1gram_starts_of_bar: set[tuple[int]] = None,
-        nminus1gram_without_octaves_starts_of_bar: set[tuple[int]] = None,
+        tuples: List[Tuple[int]],
+        ngrams: List[Tuple[int]],
+        ngrams_without_octaves: List[Tuple[str, int, bool]],
+        nminus1grams: List[Tuple[int]],
+        nminus1grams_without_octaves: List[Tuple[str, int, bool]],
+        starts_of_bar: List[bool] = None,
+        nminus1gram_starts_of_bar: set[Tuple[int]] = None,
+        nminus1gram_without_octaves_starts_of_bar: set[Tuple[int]] = None,
     ) -> None:
         for note_idx in range(len(tuples) - self.n + 2):
             # count n-1-gram
