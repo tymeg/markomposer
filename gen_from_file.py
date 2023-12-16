@@ -1,9 +1,10 @@
 from gen_music import *
 
+
 class FromFileMusicGenerator(MusicGenerator):
-    def __init__(self, mm):
+    def __init__(self, mm: MarkovModel):
         self.mm = mm
-    
+
     # very similar to method 2 for now!
     def generate_music_from_file_nanogpt(
         self,
@@ -11,9 +12,10 @@ class FromFileMusicGenerator(MusicGenerator):
         output_file: str,
         instrument: int,
         velocity: int = utils.DEFAULT_VELOCITY,
-        tempo: int = None,
-        lengths_flatten_factor: int = None,
-        strict_time_signature: bool = False,
+        tempo: Optional[int] = None,
+        lengths_flatten_factor: Optional[int] = None,
+        strict_time_signature: Optional[bool] = False,
+        broad_chords: bool = False,
     ) -> None:
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
@@ -44,7 +46,7 @@ class FromFileMusicGenerator(MusicGenerator):
         total_time = 0
         # for tuple in tuples:
         # next_note, note_length, until_next_note_start = map(int, tuple.split(","))
-        values.pop(0) # get rid of START
+        values.pop(0)  # get rid of START
         while values:
             until_next_note_start, next_note, note_length = (
                 int(values[0][1:]),
@@ -98,7 +100,7 @@ class FromFileMusicGenerator(MusicGenerator):
                     until_next_note_start -= time_in_strong_beat - strong_beat_length
 
             total_time += offset
-            if next_note not in chord:
+            if next_note not in chord and (not broad_chords or super().__good_note(next_note, chord)):
                 messages.append((total_time, next_note, True, velocity, 0))
                 messages.append(
                     (total_time + note_length, next_note, False, velocity, 0)
@@ -148,6 +150,7 @@ class FromFileMusicGenerator(MusicGenerator):
 
         new_mid.save(os.path.join(os.getcwd(), output_file))
         # super().__print_track(output_file)
+
 
 mm_4_4 = MarkovModel(
     n=3,

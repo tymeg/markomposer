@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple, Union
 
 DEFAULT_TICKS_PER_BEAT = 480
 TICKS_PER_32NOTE = DEFAULT_TICKS_PER_BEAT // 8
@@ -27,7 +27,7 @@ OCTAVES = (HIGHEST_USED_OCTAVE - LOWEST_USED_OCTAVE) + 1
 
 ALL_NOTES_COUNT = 128
 NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-KEY_SIGNATURES = [  # from mido docs - necessary?
+KEY_SIGNATURES = [
     "A",
     "A#m",
     "Ab",
@@ -93,7 +93,7 @@ DISTINCT_TONIC_KEY_SIGNATURES = [
 NOTE_LENGTHS_SIMPLE_TIME = [1, 2, 4, 8, 16, 32]
 NOTE_LENGTHS_COMPOUND_TIME = [1, 2, 3, 4, 6, 12, 24]
 
-# intervals in half notes
+# key intervals in half notes
 MAJOR_INTERVALS = [2, 2, 1, 2, 2, 2, 1]
 MINOR_INTERVALS = [2, 1, 2, 2, 1, 2, 2]
 
@@ -169,7 +169,7 @@ def transpose(
     from_tonic_note = get_tonic_note(from_key)
     to_tonic_note = get_tonic_note(to_key)
     diff = get_note_index(to_tonic_note) - get_note_index(from_tonic_note)
-    
+
     if not allow_major_minor_transpositions:
         if is_minor(from_key) and not is_minor(to_key):
             diff -= 3
@@ -247,3 +247,37 @@ def infer_key(all_notes: List[str]) -> str:
         tonic_counts = [(key, counts[get_tonic_note(key)]) for key in key_candidates]
         key = (max(tonic_counts, key=lambda entry: entry[1]))[0]
     return key
+
+
+def is_simple(chord: Tuple[Union[int, str]], symbolic: bool) -> bool:
+    # determines if chords is major/minor, with possible additional octaves, doubled notes etc.
+    # or just an octave/third/perfect fifth
+    if not symbolic:
+        chord = tuple(map(lambda note: get_note_name(note), chord))
+
+    indexed_chord = tuple(set(map(lambda note: get_note_index(note), chord)))
+    if len(indexed_chord) > 3:
+        return False
+    else:
+        if len(indexed_chord) == 2:
+            if abs(indexed_chord[1] - indexed_chord[0]) not in [
+                3,
+                12 - 3,
+                4,
+                12 - 4,
+                7,
+                12 - 7,
+            ]: # third or perfect fifth
+                return False
+        elif len(indexed_chord) == 3:
+            if ( # major/minor thirds
+                abs(indexed_chord[1] - indexed_chord[0]) in [4, 12 - 4]
+                and abs(indexed_chord[2] - indexed_chord[1]) in [3, 12 - 3]
+            ) or (
+                abs(indexed_chord[1] - indexed_chord[0]) in [3, 12 - 3]
+                and abs(indexed_chord[2] - indexed_chord[1]) in [4, 12 - 4]
+            ):
+                return True
+            else:
+                return False
+    return True # octave

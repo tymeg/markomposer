@@ -2,7 +2,7 @@ import os
 from mido import MidiFile, MetaMessage, tempo2bpm
 from tqdm import tqdm
 import math
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Set, Optional
 
 import utils
 
@@ -15,9 +15,9 @@ class MarkovModel:
         pathname: str,
         merge_tracks: bool,
         ignore_bass: bool,
-        key: str = None,
-        time_signature: str = None,
-        lengths_flatten_factor: int = None,
+        key: Optional[str] = None,
+        time_signature: Optional[str] = None,
+        lengths_flatten_factor: Optional[int] = None,
         allow_major_minor_transpositions: bool = False,
     ) -> None:
         self.n = n  # n-grams
@@ -190,7 +190,7 @@ class MarkovModel:
         length: int,
         up: bool,
         in_time_signature: bool,
-        lengths_flatten_factor: int = None,
+        lengths_flatten_factor: Optional[int] = None,
     ) -> int:
         round_fun = math.ceil if up else math.floor
         length_precision = self.length_precision
@@ -616,7 +616,7 @@ class MarkovModel:
 
         return melody_notes, melody_note_lengths, melody_intervals, melody_starts_of_bar
 
-    def __count(self, dict: Dict[tuple, int], tuple: tuple) -> None:
+    def __count(self, dict: Dict[Tuple, int], tuple: Tuple) -> None:
         if dict.get(tuple) is not None:
             dict[tuple] += 1
         else:
@@ -629,9 +629,9 @@ class MarkovModel:
         ngrams_without_octaves: List[Tuple[str, int, bool]],
         nminus1grams: List[Tuple[int]],
         nminus1grams_without_octaves: List[Tuple[str, int, bool]],
-        starts_of_bar: List[bool] = None,
-        nminus1gram_starts_of_bar: set[Tuple[int]] = None,
-        nminus1gram_without_octaves_starts_of_bar: set[Tuple[int]] = None,
+        starts_of_bar: Optional[List[bool]] = None,
+        nminus1gram_starts_of_bar: Optional[Set[Tuple[int]]] = None,
+        nminus1gram_without_octaves_starts_of_bar: Optional[Set[Tuple[int]]] = None,
     ) -> None:
         for note_idx in range(len(tuples) - self.n + 2):
             # count n-1-gram

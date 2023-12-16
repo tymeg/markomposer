@@ -8,28 +8,31 @@ with contextlib.redirect_stdout(None):
 from gen_music import *
 
 parser = argparse.ArgumentParser(
-    description="Generate music in style of input .mid files, using Markov chains",
+    description="Generate music in style of input .mid files, using Markov chains.\n"
+    "Please don't combine short flags in one string (e.g. -oc -e instead of -oce)!",
     formatter_class=argparse.RawTextHelpFormatter,
     epilog="Specified options not suitable for chosen method will be ignored.",
 )
 
 # -------------------------------- REQUIRED ARGUMENTS ------------------------------------
 parser.add_argument(
-    "input_path", help="path to input .mid file (ending with .mid) or directory with .mid files"
+    "input_path",
+    help="path to input .mid file (ending with .mid) or directory with .mid files",
 )
 parser.add_argument(
     "method",
-    choices=['1', '2', '3', "all"],
+    choices=["1", "2", "3", "all"],
     help="generating method:\n"
-    '1 - "melody n-grams" - melody from Markov chain, later harmonized with chords/arpeggios (2 tracks)\n'
+    '1 - "melody n-grams" - melody from Markov chain, later harmonized with chords (/arpeggios) found in input (2 tracks)\n'
+    'Please specify key signature with -k to get a good harmony.\n'
     '2 - "harmony n-grams" - melody and harmony from Markov chain (notes with distances between them) (1 track)\n'
     '3 - "bar n-grams" - melody and harmony from Markov chain (notes with positions in bar) (1 track)\n\n'
     "Methods 1 and 3 always generate in time signature (default: 4/4), method 2 only when specified.\n"
     "Best use 3 when most/all input mids are in the same time signature (and have multiple instruments, e.g. pop music).\n"
     "2 is (usually) better for single instrument mids in different time signatures (e.g. classical piano music).\n"
-    "You can always use 1, but it can generate music a bit less similar to input mids than methods 2 and 3.\n\n"
+    "You can always use 1, but it can generate music a bit less similar to input mids (with different harmony) than methods 2 and 3.\n\n"
     "Specifying 'all' will generate and play 3 songs (named ..._1.mid, ..._2.mid, ..._3.mid),\n"
-    "every time using different method and specified options, suitable for current method."
+    "every time using different method and specified options, suitable for current method.",
 )
 parser.add_argument(
     "length",
@@ -49,7 +52,7 @@ parser.add_argument(
     "--time-signature",
     help=f"b/v where b in {beats_per_bar} and v in {beat_values}\n"
     "Default: 4/4 in methods 1 and 3, doesn't force any time signature in method 2.\n"
-    "Note: can work imperfectly. If method 2 gives bad output,\n"
+    "Note: can work imperfectly. If method 2 gives bad, 'snatchy' output,\n"
     "consider turning time signature off or using other method. Also, when using 3. generating method,\n"
     "specify time signature common for most input files!",
 )
@@ -60,7 +63,7 @@ parser.add_argument(
     "--key-signature",
     choices=utils.KEY_SIGNATURES,
     help="Tracks are transposed to specified key (or relative major/minor to it -\n"
-    "use --allow-major-minor-transpositions if you don't want it).\n" 
+    "use --allow-major-minor-transpositions if you don't want it).\n"
     "Can help Markov wander more freely between fragments of different tracks. Harmony is prettier too.\n"
     "Default: doesn't force any key signature.\n"
     "Note: this doesn't work strictly - notes outside of scale can appear.\n"
@@ -98,7 +101,7 @@ parser.add_argument(
     "--allow-major-minor-transpositions",
     action="store_true",
     help="allow transposing tracks between major and minor\n"
-    "Note: can change the 'mood' of fragments of some tracks.\n"
+    'Note: can change the "mood" of fragments of some tracks.\n'
     "Default: false - transposes to relative major/minor scale.",
     default=False,
 )
@@ -269,7 +272,7 @@ melody_and_harmony_ngrams_optionals.add_argument(
     type=int,
     choices=[2, 4, 8],
     help='factor by which 32th note length precision is multiplied after creating model, during generation. It "unifies" tempo.\n'
-    'Using at least 2 is recommended for input mids diverse in time signature and tempo.',
+    "Using at least 2 is recommended for input mids diverse in time signature and tempo.",
 )
 
 
@@ -302,6 +305,16 @@ harmony_and_bar_ngrams_optionals.add_argument(
     "--only-high-notes",
     action="store_true",
     help="track played only on high octaves' notes",
+    default=False,
+)
+
+# broad chords
+harmony_and_bar_ngrams_optionals.add_argument(
+    "-bc",
+    "--broad-chords",
+    action="store_true",
+    help='prevents generating too "tight" chords, which may not fit (e.g. "glued" by Markov model)\n' 
+    '(all notes must be at least 3 semitones apart from each other).',
     default=False,
 )
 
@@ -417,6 +430,7 @@ try:
             strict_time_signature=args.strict_time_signature,
             start_filepath=args.start_filepath,
             end_on_tonic=args.end_on_tonic,
+            broad_chords=args.broad_chords,
         )
     if args.method == 3 or args.method == "all":
         if args.method == "all":
@@ -431,6 +445,7 @@ try:
             first_note=args.first_note,
             tempo=tempo,
             end_on_tonic=args.end_on_tonic,
+            broad_chords=args.broad_chords,
         )
 
     # ---------------------------- PLAY MUSIC --------------------------------------
