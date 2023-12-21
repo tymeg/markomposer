@@ -1,5 +1,6 @@
 from typing import List, Tuple, Union
 
+# defaults
 DEFAULT_TICKS_PER_BEAT = 480
 TICKS_PER_32NOTE = DEFAULT_TICKS_PER_BEAT // 8
 DEFAULT_BEATS_PER_BAR = 4
@@ -7,17 +8,19 @@ DEFAULT_BEAT_VALUE = 4
 DEFAULT_TEMPO = 500000
 DEFAULT_VELOCITY = 64
 
+# length precision
 SHORTEST_NOTE = 32
 
+# chords
 MAX_CHORD_SIZE = 3
 UNTIL_NEXT_CHORD = 1
 
-# MAX_TRACKS_TO_MERGE = 10
-
+# instruments
 DRUM_CHANNEL = 9
 PERCUSSIVE_INSTRUMENTS = 112  # from
 BASS = range(32, 40)
 
+# for only high/only low notes
 HIGH_NOTES_OCTAVE_THRESHOLD = 3
 
 # for without_octaves generation
@@ -25,8 +28,8 @@ LOWEST_USED_OCTAVE = 1
 HIGHEST_USED_OCTAVE = 6
 OCTAVES = (HIGHEST_USED_OCTAVE - LOWEST_USED_OCTAVE) + 1
 
-ALL_NOTES_COUNT = 128
-NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+ALL_NOTES_COUNT = 128 # note ints
+NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] # note strings
 KEY_SIGNATURES = [
     "A",
     "A#m",
@@ -99,26 +102,49 @@ MINOR_INTERVALS = [2, 1, 2, 2, 1, 2, 2]
 
 
 def get_note_in_octave(note: str, octave: int) -> int:
+    '''
+    Gets int value of note in specific octave. 
+    Example: (C, 4) -> 60.
+    '''
     return (octave + 1) * 12 + get_note_index(note)
 
 
 def get_note_index(note: str) -> int:
+    f'''
+    Gets index of note name in {NOTES}. 
+    Example: E -> 4.
+    '''
     return NOTES.index(note)
 
 
 def get_note_name(note: int) -> str:
+    '''
+    Converts int to note name. 
+    Example: 60 -> C.
+    '''
     return NOTES[note % 12]
 
 
 def get_note_octave(note: int) -> int:
+    '''
+    Gets octave of note int. 
+    Example: 60 -> 4.
+    '''
     return (note // 12) - 1
 
 
 def get_note_name_with_octave(note: int) -> str:
+    '''
+    Converts note int to note name with octave. 
+    Example: 60 -> C4.'''
     return get_note_name(note) + str(get_note_octave(note))
 
 
 def flat_to_sharp(note: str) -> str:
+    '''
+    Converts flat to corresponding (sharp) note, leaves all other unchanged. Used to unify same note pitches.
+    Examples: Db -> C#, Cb -> B, C -> C, C# -> C#.
+    '''
     if note == "Cb":
         return "B"
     elif note == "Db":
@@ -136,15 +162,24 @@ def flat_to_sharp(note: str) -> str:
 
 
 def is_minor(key: str) -> bool:
+    '''Checks if key is minor.'''
     return key[-1] == "m"
 
 
 def get_tonic_note(key: str) -> str:
+    '''
+    Gets the tonic note (or sharp corresponding to flat note) of the key.
+    Example: Ebm -> D#
+    '''
     tonic_note = key[:-1] if is_minor(key) else key
     return flat_to_sharp(tonic_note)
 
 
 def get_key_notes(key: str) -> List[str]:
+    '''
+    Returns a list of notes in the specified key.
+    Example: C -> [C, D, E, F, G, A, B]
+    '''
     key_notes = list()
 
     minor = is_minor(key)
@@ -166,6 +201,11 @@ def get_key_notes(key: str) -> List[str]:
 def transpose(
     note: int, from_key: str, to_key: str, allow_major_minor_transpositions: bool
 ) -> str:
+    '''
+    Transposes note down from from_key to to_key (up only if it is in the lowest used octave).
+    Default: if from_key and to_key are of different type (major, minor), transposes instead to relative major/minor scale.
+    If allow_major_minor_transpositions is set, allows major to minor and minor to major transposition.
+    '''
     from_tonic_note = get_tonic_note(from_key)
     to_tonic_note = get_tonic_note(to_key)
     diff = get_note_index(to_tonic_note) - get_note_index(from_tonic_note)
@@ -204,8 +244,14 @@ def transpose(
     return transposed_note
 
 
-# can work quite properly only if there are no key changes in the song!
 def infer_key(all_notes: List[str]) -> str:
+    '''
+    Infers key by counting occurences of different notes in track/song. 
+    Chooses key based on 7 (or less, if none fits/some notes occur 0 times) most often notes.
+    If more than one key fits, chooses the key which tonic note occures most often.
+
+    Can work quite properly only if there are no key changes in the song and best if key is minor/major!
+    '''
     counts = {note: 0 for note in NOTES}
     for note in all_notes:
         counts[note] += 1
@@ -250,8 +296,11 @@ def infer_key(all_notes: List[str]) -> str:
 
 
 def is_simple(chord: Tuple[Union[int, str]], symbolic: bool) -> bool:
-    # determines if chords is major/minor, with possible additional octaves, doubled notes etc.
-    # or just an octave/third/perfect fifth
+    '''
+    Checks if the chord is "simple", which is one of octave/power chord/major/minor third
+    or major/minor with possible doubled note names (3 different note names at most).
+    Works on note names or ints based on symbolic parameter.
+    '''
     if not symbolic:
         chord = tuple(map(lambda note: get_note_name(note), chord))
 

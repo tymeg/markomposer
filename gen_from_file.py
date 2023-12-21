@@ -2,7 +2,9 @@ from gen_music import *
 
 
 class FromFileMusicGenerator(MusicGenerator):
+    '''Object representing the generator of music from nanoGPT's output.'''
     def __init__(self, mm: MarkovModel):
+        '''Saves the MarkovModel.'''
         self.mm = mm
 
     # very similar to method 2 for now!
@@ -17,6 +19,11 @@ class FromFileMusicGenerator(MusicGenerator):
         strict_time_signature: Optional[bool] = False,
         broad_chords: bool = False,
     ) -> None:
+        '''
+        Generates music, parsing tokens from nanoGPT in input_filepath.
+        Flattens the lengths or moves note starts to strong beats, if specified.
+        Saves the track to .mid output_file.
+        '''
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
         )  # one track
@@ -80,8 +87,6 @@ class FromFileMusicGenerator(MusicGenerator):
                 if (  # maybe extend until_next_note_start
                     time_in_strong_beat + note_length
                     > strong_beat_length
-                    # and next_note_length <= strong_beat_length
-                    # and (time_in_strong_beat + next_note_length) % strong_beat_length != 0
                 ):
                     offset = (
                         strong_beat_length - time_in_strong_beat
@@ -95,7 +100,6 @@ class FromFileMusicGenerator(MusicGenerator):
                 if (  # maybe shrink until_next_note_start
                     time_in_strong_beat > strong_beat_length
                     and time_in_strong_beat % strong_beat_length != 0
-                    # and next_interval <= strong_beat_length
                 ):
                     until_next_note_start -= time_in_strong_beat - strong_beat_length
 
@@ -149,7 +153,6 @@ class FromFileMusicGenerator(MusicGenerator):
         super()._append_messages(track, messages)
 
         new_mid.save(os.path.join(os.getcwd(), output_file))
-        # super().__print_track(output_file)
 
 
 mm_4_4 = MarkovModel(
@@ -170,7 +173,6 @@ mm = MarkovModel(
     merge_tracks=True,
     ignore_bass=True,
     key="C",
-    # time_signature="4/4",
     # lengths_flatten_factor=2,
 )
 
