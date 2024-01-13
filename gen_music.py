@@ -672,7 +672,7 @@ class MusicGenerator:
         '''
         Generates the melody (1st track) from MarkovModel melody n-grams, and then adds harmony supporting it (2nd track) -
         chords and arpeggios starting with strong beats/bars, which fit.
-        Always generates in time signature (4/4 if note specified in MarkovModel).
+        Always generates in time signature (4/4 if not specified in MarkovModel).
         Saves the 2 tracks to output_file MIDI sequence.
         '''
         new_mid = MidiFile(
@@ -874,7 +874,7 @@ class MusicGenerator:
             if total_time // bar_length > bar:
                 bar += 1
                 progress.update()
-            if total_time // bar_length >= bars:
+            if total_time // bar_length >= bars or (total_time // bar_length >= bars - 1 and end_on_tonic):
                 if end_on_tonic:
                     if only_arpeggios:
                         tonic_note = utils.get_tonic_note(self.mm.main_key)
@@ -1096,7 +1096,7 @@ class MusicGenerator:
             if total_time // bar_length > bar:
                 bar += 1
                 progress.update()
-            if total_time // bar_length >= bars:
+            if total_time // bar_length >= bars or (total_time // bar_length >= bars - 1 and end_on_tonic):
                 if end_on_tonic:
                     self._add_tonic_chord(
                         prev_chord,
@@ -1230,7 +1230,7 @@ class MusicGenerator:
             if total_time // bar_length > bar:
                 bar += 1
                 progress.update()
-            if total_time // bar_length >= bars:
+            if total_time // bar_length >= bars or (total_time // bar_length >= bars - 1 and end_on_tonic):
                 if end_on_tonic:
                     self._add_tonic_chord(
                         prev_chord,

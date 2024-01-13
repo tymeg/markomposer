@@ -11,7 +11,7 @@ DEFAULT_VELOCITY = 64
 # length precision
 SHORTEST_NOTE = 32
 
-# chords
+# chords' restrictions - for method 2
 MAX_CHORD_SIZE = 3
 UNTIL_NEXT_CHORD = 1
 
@@ -247,7 +247,7 @@ def transpose(
 def infer_key(all_notes: List[str]) -> str:
     '''
     Infers key by counting occurences of different notes in track/song. 
-    Chooses key based on 7 (or less, if none fits/some notes occur 0 times) most often notes.
+    Chooses key based on 7 (or less, if none fits/some notes occur 0 times) most often pitches.
     If more than one key fits, chooses the key which tonic note occures most often.
 
     Can work quite properly only if there are no key changes in the song and best if key is minor/major!

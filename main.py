@@ -1,5 +1,5 @@
 import argparse
-from mido import second2tick
+from mido import second2tick, tempo2bpm
 import contextlib
 
 with contextlib.redirect_stdout(None):
@@ -24,7 +24,7 @@ parser.add_argument(
     choices=["1", "2", "3", "all"],
     help="generating method:\n"
     '1 - "melody n-grams" - melody from Markov chain, later harmonized with chords (/arpeggios) found in input (2 tracks)\n'
-    'Please specify key signature with -k to get a good harmony.\n'
+    "Please specify key signature with -k to get a good harmony.\n"
     '2 - "harmony n-grams" - melody and harmony from Markov chain (notes with distances between them) (1 track)\n'
     '3 - "bar n-grams" - melody and harmony from Markov chain (notes with positions in bar) (1 track)\n\n'
     "Methods 1 and 3 always generate in time signature (default: 4/4), method 2 only when specified.\n"
@@ -127,6 +127,13 @@ parser.add_argument(
     default=False,
 )
 
+parser.add_argument(
+    "-mt",
+    "--max-tracks",
+    type=int,
+    help="(first) maximum number of tracks to process and train on in each file",
+)
+
 # sampling
 sampling = parser.add_mutually_exclusive_group()
 sampling.add_argument(
@@ -142,7 +149,7 @@ parser.add_argument(
     "-w",
     "--weighted-random-start",
     action="store_true",
-    help="choose first n-1 notes by weighted random sampling",
+    help="choose first n-1 notes by sampling from a distribution where ppbs match certain n-1-grams' counts",
     default=False,
 )
 
@@ -313,8 +320,8 @@ harmony_and_bar_ngrams_optionals.add_argument(
     "-bc",
     "--broad-chords",
     action="store_true",
-    help='prevents generating too "tight" chords, which may not fit (e.g. "glued" by Markov model)\n' 
-    '(all notes must be at least 3 semitones apart from each other).',
+    help='prevents generating too "tight" chords, which may not fit (e.g. "glued" by Markov model)\n'
+    "(all notes must be at least 3 semitones apart from each other).",
     default=False,
 )
 
@@ -327,6 +334,8 @@ try:
     dir = not (args.input_path[-4:] == ".mid")
     merge_tracks = not args.no_merge
     with_octave = not args.without_octaves
+    if args.max_tracks <= 0:
+        raise ValueError("max_tracks must be int >= 1")
 
     if args.method != "all":
         args.method = int(args.method)
@@ -343,6 +352,7 @@ try:
         pathname=args.input_path,
         merge_tracks=merge_tracks,
         ignore_bass=args.ignore_bass,
+        max_tracks=args.max_tracks,
         key=args.key_signature,
         time_signature=args.time_signature,
         lengths_flatten_factor=args.flatten_before,
@@ -368,13 +378,18 @@ try:
         output_files = [name + "_1.mid", name + "_2.mid", name + "_3.mid"]
 
     if args.tempo:
-        tempo = bpm2tempo(args.tempo)
+        if args.time_signature:
+            tempo = bpm2tempo(args.tempo, map(int, args.time_signature.split("/")))
+        else:
+            tempo = bpm2tempo(args.tempo)
     else:
         tempo = mm.main_tempo
 
     # convert minutes and seconds to bar (rounding up)
     if ":" in args.length:
         minutes, seconds = list(map(int, args.length.split(":")))
+        if minutes < 0 or seconds < 0 or (minutes <= 0 and seconds == 0):
+            raise ValueError("Time must be positive!")
         seconds += 60 * minutes
         ticks = second2tick(seconds, utils.DEFAULT_TICKS_PER_BEAT, tempo)
 
@@ -382,13 +397,15 @@ try:
         if not time_signature:
             ticks_per_bar = utils.DEFAULT_BEATS_PER_BAR * utils.DEFAULT_TICKS_PER_BEAT
         else:
-            beats_per_bar, beat_value = time_signature.split("/")
+            beats_per_bar, beat_value = map(int, time_signature.split("/"))
             ticks_per_bar = beats_per_bar * (
                 utils.DEFAULT_TICKS_PER_BEAT / (beat_value / 4)
             )
         bars = math.ceil(ticks / ticks_per_bar)
     else:
         bars = int(args.length)
+        if bars <= 0:
+            raise ValueError("Bars' number must be positive!")
     tempo = tempo2bpm(tempo)
 
     print("Generating music...")

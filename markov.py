@@ -1,5 +1,5 @@
 import os
-from mido import MidiFile, MetaMessage, tempo2bpm
+from mido import MidiFile, MetaMessage
 from tqdm import tqdm
 import math
 from typing import List, Tuple, Dict, Set, Optional
@@ -16,6 +16,7 @@ class MarkovModel:
         pathname: str,
         merge_tracks: bool,
         ignore_bass: bool,
+        max_tracks: int = None,
         key: Optional[str] = None,
         time_signature: Optional[str] = None,
         lengths_flatten_factor: Optional[int] = None,
@@ -157,11 +158,7 @@ class MarkovModel:
 
             print("Processing mid tracks and creating Markov model...")
             for mid in tqdm(self.mids):
-                self.notes_list_file1.write("START ")
-                self.notes_list_file2.write("START ")
-                self.__process_mid_file(mid, merge_tracks, ignore_bass)
-                self.notes_list_file1.write("END\n")
-                self.notes_list_file2.write("END\n")
+                self.__process_mid_file(mid, merge_tracks, ignore_bass, max_tracks)
 
             # calculates the average tempo
             if self.main_tempo > 0:
@@ -278,7 +275,7 @@ class MarkovModel:
             melody_tuples = list(
                 zip(melody_notes, melody_note_lengths, melody_pauses)
             )
-            all_tuples = list(
+            harmony_tuples = list(
                 zip(notes, rounded_note_lengths, time_between_note_starts)
             )
             bar_tuples = list(zip(notes, rounded_note_lengths, rounded_times_in_bar))
@@ -294,9 +291,9 @@ class MarkovModel:
                 self.melody_nminus1gram_starts_of_bar,
                 self.melody_nminus1gram_without_octaves_starts_of_bar,
             )
-            # for generate_with_tuple_ngrams
+            # for generate_with_harmony_ngrams
             self.__count_track_tuple_ngrams(
-                all_tuples,
+                harmony_tuples,
                 self.harmony_ngrams,
                 self.harmony_ngrams_without_octaves,
                 self.harmony_nminus1grams,
@@ -314,14 +311,18 @@ class MarkovModel:
                 self.bar_nminus1grams_without_octaves,
             )
 
+            self.notes_list_file1.write("START ")
+            self.notes_list_file2.write("START ")
             # append to file for nanoGPT
-            for note, note_length, until_next_note_start in all_tuples:
+            for note, note_length, until_next_note_start in harmony_tuples:
                 self.notes_list_file1.write(
                     f"I{str(until_next_note_start)} N{str(note)} L{str(note_length)} "
                 )
                 self.notes_list_file2.write(
                     f"{str(note)},{str(note_length)},{str(until_next_note_start)} "
                 )
+            self.notes_list_file1.write("END\n")
+            self.notes_list_file2.write("END\n")
 
     def __transpose_track(
         self, note_lengths: List[Tuple[int, bool]]
@@ -353,7 +354,7 @@ class MarkovModel:
         return note_lengths
 
     def __process_mid_file(
-        self, mid: MidiFile, merge_tracks: bool, ignore_bass: bool
+        self, mid: MidiFile, merge_tracks: bool, ignore_bass: bool, max_tracks: int
     ) -> int:
         '''
         Iterates the tracks of the MIDI sequence, collects and counts notes, 
@@ -372,7 +373,7 @@ class MarkovModel:
 
         if merge_tracks:
             all_note_lengths = list()
-            merged_tracks = 0
+        processed_tracks = 0
 
         if self.main_key:
             first_notes_track = True
@@ -461,9 +462,9 @@ class MarkovModel:
                     instruments[msg.channel] = msg.program
 
             if note_lengths:
+                processed_tracks += 1
                 if merge_tracks:
                     all_note_lengths += note_lengths
-                    merged_tracks += 1
                 else:
                     if (
                         self.main_key and not self.__current_key and first_notes_track
@@ -473,6 +474,10 @@ class MarkovModel:
                             return  # skip file in training
                         first_notes_track = False
                     self.__count_all(note_lengths)
+
+            if max_tracks is not None:
+                if processed_tracks == max_tracks:
+                    break
 
         if merge_tracks:
             if self.main_key and not self.__current_key and all_note_lengths:

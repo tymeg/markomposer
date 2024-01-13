@@ -155,6 +155,7 @@ class FromFileMusicGenerator(MusicGenerator):
         new_mid.save(os.path.join(os.getcwd(), output_file))
 
 
+# pathname=None creates a MarkovModel object without processing any mids
 mm_4_4 = MarkovModel(
     n=3,
     dir=True,
