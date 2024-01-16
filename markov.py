@@ -8,7 +8,8 @@ import utils
 
 
 class MarkovModel:
-    '''Object representing a Markov model of given songs.'''
+    """Object representing a Markov model of given songs."""
+
     def __init__(
         self,
         n: int,
@@ -22,11 +23,11 @@ class MarkovModel:
         lengths_flatten_factor: Optional[int] = None,
         allow_major_minor_transpositions: bool = False,
     ) -> None:
-        '''
+        """
         Collects input MIDI sequence files and processes them - parses tracks with MIDI messages,
         counts n-grams and n-1-grams and extracts melody and chords for method 1.
         Notes saved in the model are first transposed to given key, if specified.
-        '''
+        """
         self.n = n  # length of n-grams
 
         # TUPLES (NOTE, NOTE LENGTH, TIME FROM NOTE START TO START OF NEXT NOTE) - MELODY WITH HARMONY
@@ -89,10 +90,7 @@ class MarkovModel:
         # default: 60 ticks (32nd note length)
         self.length_precision = int(
             utils.DEFAULT_TICKS_PER_BEAT
-            / (
-                self.__shortest_note
-                / utils.DEFAULT_BEAT_VALUE
-            )
+            / (self.__shortest_note / utils.DEFAULT_BEAT_VALUE)
         )
 
         self.main_bar_length = int(
@@ -109,7 +107,7 @@ class MarkovModel:
             self.main_bar_length,
         )
 
-        # determines if time signature is simple or compound, 
+        # determines if time signature is simple or compound,
         # and chooses set of used note lengths based on that
         if self.main_beats_per_bar in [2, 3, 4]:
             self.simple_time = True
@@ -170,7 +168,7 @@ class MarkovModel:
             self.notes_list_file2.close()
 
     def __collect_mid_files(self, dir: bool) -> None:
-        '''Collects .mid file or files from dir.'''
+        """Collects .mid file or files from dir."""
         print("Collecting and parsing mid files...")
         if dir:
             for root, _, files in os.walk(self.path):
@@ -186,7 +184,7 @@ class MarkovModel:
                                 self.mids.append(mid_file)
                             else:
                                 print(f"Skipped {mid_file.filename} - type 2!")
-                        except Exception as e:
+                        except Exception:
                             print(f"\nError: skipped {file}")
             if not self.mids:
                 raise ValueError("No .mid files of type 0 or 1 in given directory!")
@@ -203,11 +201,11 @@ class MarkovModel:
         in_time_signature: bool,
         lengths_flatten_factor: Optional[int] = None,
     ) -> int:
-        '''
+        """
         Rounds length up or down to length precision, which is multiplied by lengths_flatten_factor if specified.
         Then rounds up to closest note from used note lengths for given time signature, if in_time_signature is True.
         Clips the length to max length if rounded length is longer.
-        '''
+        """
         round_fun = math.ceil if up else math.floor
         length_precision = self.length_precision
         if lengths_flatten_factor:
@@ -229,10 +227,10 @@ class MarkovModel:
         return rounded_length
 
     def __count_all(self, note_lengths: List[Tuple[int, bool]]) -> None:
-        '''
+        """
         Sorts the note lengths by start time, calculates distances between notes
         and then counts all the n-grams and n-1-grams. Appends notes to nanoGPT corpus.
-        '''
+        """
         if note_lengths:
             note_lengths = list(set(note_lengths))
             note_lengths.sort()
@@ -276,9 +274,7 @@ class MarkovModel:
                 )
             )
 
-            melody_tuples = list(
-                zip(melody_notes, melody_note_lengths, melody_pauses)
-            )
+            melody_tuples = list(zip(melody_notes, melody_note_lengths, melody_pauses))
             harmony_tuples = list(
                 zip(notes, rounded_note_lengths, time_between_note_starts)
             )
@@ -331,7 +327,7 @@ class MarkovModel:
     def __transpose_track(
         self, note_lengths: List[Tuple[int, bool]]
     ) -> List[Tuple[int]]:
-        '''Infers the key of the whole track and transposes it to key given in MarkovModel constructor.'''
+        """Infers the key of the whole track and transposes it to key given in MarkovModel constructor."""
         notes_str = list(map(lambda tpl: utils.get_note_name(tpl[2]), note_lengths))
         self.__current_key = utils.infer_key(notes_str)
         if self.__current_key is None:
@@ -360,12 +356,12 @@ class MarkovModel:
     def __process_mid_file(
         self, mid: MidiFile, merge_tracks: bool, ignore_bass: bool, max_tracks: int
     ) -> int:
-        '''
-        Iterates the tracks of the MIDI sequence, collects and counts notes, 
+        """
+        Iterates the tracks of the MIDI sequence, collects and counts notes,
         transposing them first to common key, if it was given in the MarkovModel constructor.
         Always ignores drums and percussive instruments, ignores bass tracks if ignore_bass is True.
         Merges tracks of different instruments if merge_tracks is True.
-        '''
+        """
         # to count lengths properly
         ticks_per_beat_factor = utils.DEFAULT_TICKS_PER_BEAT / mid.ticks_per_beat
         # list of pairs: (start in total ticks, key)
@@ -374,6 +370,12 @@ class MarkovModel:
         self.__bar_lengths = list()
         # dict: channel -> instrument
         instruments = {ch: 0 for ch in range(16)}
+
+        self.__current_key = None
+        self.__current_bar_length = (
+            utils.DEFAULT_BEATS_PER_BAR * utils.DEFAULT_TICKS_PER_BEAT
+        )
+        self.__current_tempo = utils.DEFAULT_TEMPO
 
         if merge_tracks:
             all_note_lengths = list()
@@ -424,11 +426,11 @@ class MarkovModel:
                                 start = currently_playing_notes_starts[msg.note]
                                 note = msg.note
 
+                                meter_start = 0
+                                if self.__bar_lengths:
+                                    meter_start = self.__bar_lengths[meter_idx][0]
                                 time_in_bar = (
-                                    int(
-                                        (start - self.__bar_lengths[meter_idx][0])
-                                        * ticks_per_beat_factor
-                                    )
+                                    int((start - meter_start) * ticks_per_beat_factor)
                                     % self.__current_bar_length
                                 )
                                 # determine if note starts bar
@@ -492,11 +494,10 @@ class MarkovModel:
 
         self.main_tempo += self.__current_tempo
         self.__tempos_count += 1
-        self.__current_key = None
         self.processed_mids += 1
 
     def __read_meta_message(self, msg: MetaMessage, total_time: int) -> None:
-        '''Reads tempo, time signature or key from a MetaMessage.'''
+        """Reads tempo, time signature or key from a MetaMessage."""
         if msg.type == "set_tempo":
             if self.__current_tempo:
                 self.main_tempo += self.__current_tempo
@@ -523,11 +524,11 @@ class MarkovModel:
     def __extract_melody_and_chords(
         self, note_lengths: List[Tuple[int, bool]]
     ) -> Tuple[List[int], bool]:
-        '''
-        Extracts the track's melody, choosing the highest note in each time frame (box).        
+        """
+        Extracts the track's melody, choosing the highest note in each time frame (box).
         Calculates pauses between notes in the melody.
         Extracts chords as tuples of notes playing simultaneously in a time frame (box).
-        '''
+        """
 
         end_time = note_lengths[-1][0] + note_lengths[-1][1]
         note_lengths_dict = {nl: True for nl in note_lengths}
@@ -626,7 +627,7 @@ class MarkovModel:
         return melody_notes, melody_note_lengths, melody_pauses, melody_starts_of_bar
 
     def __count(self, dict: Dict[Tuple, int], tuple: Tuple) -> None:
-        '''Increments the count of tuple in dict.'''
+        """Increments the count of tuple in dict."""
         if dict.get(tuple) is not None:
             dict[tuple] += 1
         else:
@@ -643,7 +644,7 @@ class MarkovModel:
         nminus1gram_starts_of_bar: Optional[Set[Tuple[int]]] = None,
         nminus1gram_without_octaves_starts_of_bar: Optional[Set[Tuple[int]]] = None,
     ) -> None:
-        '''Counts the track's n-grams and n-1-grams of given type. Saves the n-1-grams which start a bar.'''
+        """Counts the track's n-grams and n-1-grams of given type. Saves the n-1-grams which start a bar."""
         for note_idx in range(len(tuples) - self.n + 2):
             # count n-1-gram
             nminus1gram = tuple(
