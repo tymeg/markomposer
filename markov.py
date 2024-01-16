@@ -173,17 +173,21 @@ class MarkovModel:
         '''Collects .mid file or files from dir.'''
         print("Collecting and parsing mid files...")
         if dir:
-            for filename in tqdm(os.listdir(self.path)):
-                file = os.path.join(self.path, filename)
-                if (
-                    os.path.isfile(file)
-                    and os.path.splitext(file)[-1].lower() == ".mid"
-                ):
-                    mid_file = MidiFile(file)
-                    if not mid_file.type == 2:
-                        self.mids.append(mid_file)
-                    else:
-                        print(f"Skipped {mid_file.filename} - type 2!")
+            for root, _, files in os.walk(self.path):
+                for filename in tqdm(files):
+                    file = os.path.join(root, filename)
+                    if (
+                        os.path.isfile(file)
+                        and os.path.splitext(file)[-1].lower() == ".mid"
+                    ):
+                        try:
+                            mid_file = MidiFile(file)
+                            if not mid_file.type == 2:
+                                self.mids.append(mid_file)
+                            else:
+                                print(f"Skipped {mid_file.filename} - type 2!")
+                        except Exception as e:
+                            print(f"\nError: skipped {file}")
             if not self.mids:
                 raise ValueError("No .mid files of type 0 or 1 in given directory!")
         else:  # assumes file is of .mid extension

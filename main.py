@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser(
 # -------------------------------- REQUIRED ARGUMENTS ------------------------------------
 parser.add_argument(
     "input_path",
-    help="path to input .mid file (ending with .mid) or directory with .mid files",
+    help="path to input .mid file (ending with .mid) or directory with .mid files (searches for them also recursively)",
 )
 parser.add_argument(
     "method",
@@ -334,7 +334,7 @@ try:
     dir = not (args.input_path[-4:] == ".mid")
     merge_tracks = not args.no_merge
     with_octave = not args.without_octaves
-    if args.max_tracks <= 0:
+    if args.max_tracks is not None and args.max_tracks <= 0:
         raise ValueError("max_tracks must be int >= 1")
 
     if args.method != "all":
