@@ -3,6 +3,7 @@ from mido import MidiFile, MetaMessage
 from tqdm import tqdm
 import math
 from typing import List, Tuple, Dict, Set, Optional
+import pickle
 
 import utils
 
@@ -149,13 +150,17 @@ class MarkovModel:
                 "w",
             )
 
-            self.mids = list()
+            mids = list()
             self.processed_mids = 0
 
-            self.__collect_mid_files(dir)
+            if dir and pathname == "serialized":
+                mids = pickle.load(open(os.path.join(os.path.dirname(__file__), pathname), "rb"))
+            else:
+                self.__collect_mid_files(dir, mids)
+                pickle.dump(mids, open(os.path.join(os.path.dirname(__file__), "serialized"), "wb"))
 
             print("Processing mid tracks and creating Markov model...")
-            for mid in tqdm(self.mids):
+            for mid in tqdm(mids):
                 self.__process_mid_file(mid, merge_tracks, ignore_bass, max_tracks)
 
             # calculates the average tempo
@@ -167,7 +172,7 @@ class MarkovModel:
             self.notes_list_file1.close()
             self.notes_list_file2.close()
 
-    def __collect_mid_files(self, dir: bool) -> None:
+    def __collect_mid_files(self, dir: bool, mids: List[MidiFile]) -> None:
         """Collects .mid file or files from dir."""
         print("Collecting and parsing mid files...")
         if dir:
@@ -181,18 +186,18 @@ class MarkovModel:
                         try:
                             mid_file = MidiFile(file)
                             if not mid_file.type == 2:
-                                self.mids.append(mid_file)
+                                mids.append(mid_file)
                             else:
                                 print(f"Skipped {mid_file.filename} - type 2!")
                         except Exception:
-                            print(f"\nError: skipped {file}")
-            if not self.mids:
-                raise ValueError("No .mid files of type 0 or 1 in given directory!")
+                            print(f"\nError - corrupted file: skipped {file}")
+            if not mids:
+                raise ValueError("No uncorrupted .mid files of type 0 or 1 in given directory!")
         else:  # assumes file is of .mid extension
             mid_file = MidiFile(self.path)
             if mid_file.type == 2:
                 raise ValueError(".mid file should be of type 0 or 1!")
-            self.mids.append(mid_file)
+            mids.append(mid_file)
 
     def round_time(
         self,

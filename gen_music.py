@@ -11,7 +11,8 @@ from markov import *
 
 
 class MusicGenerator:
-    '''Object representing the music generator.'''
+    """Object representing the music generator."""
+
     def __init__(
         self,
         mm: MarkovModel,
@@ -20,7 +21,7 @@ class MusicGenerator:
         uniform: bool = False,
         weighted_random_start: bool = False,
     ) -> None:
-        '''Saves the MarkovModel, sampling parameters and used note length ranges.'''
+        """Saves the MarkovModel, sampling parameters and used note length ranges."""
         self.mm = mm
         self.k = k  # for top-k sampling (greedy for k=1) - sample from k most probable
         self.p = p  # for top-p sampling - sample from the smallest possible set
@@ -46,7 +47,7 @@ class MusicGenerator:
         prev: Tuple,
         value: Tuple,
     ) -> None:
-        '''Counts the ppb of nth note (value) playing after previous known n-1 notes.'''
+        """Counts the ppb of nth note (value) playing after previous known n-1 notes."""
         ngram = prev + (value,)
         ngram_count = ngrams.get(ngram)
         if ngram_count:
@@ -58,7 +59,7 @@ class MusicGenerator:
             ppbs[value] = 0.0
 
     def __normalize_ppbs(self, ppbs: Dict[Tuple, float]) -> NDArray[np.float64]:
-        '''Normalizes ppbs and transforms dict: nth note -> ppb into NumPy array of only ppbs.'''
+        """Normalizes ppbs and transforms dict: nth note -> ppb into NumPy array of only ppbs."""
         # make list only of ppbs
         ppbs = list(ppbs.values())
 
@@ -68,11 +69,11 @@ class MusicGenerator:
         return ppbs
 
     def __sampling(self, ppbs: Dict[Tuple, float]) -> None:
-        '''
+        """
         Performs top-k sampling - zeroing all ppbs lower than k highest ppbs,
         or top-p sampling - zeroing all other ppbs, when previous higher ppbs cumulate to >= p.
         Note: ppbs aren't normalized here, it will be done later.
-        '''
+        """
         # sort dict by value
         ppbs_from_highest = {
             k: v
@@ -97,7 +98,7 @@ class MusicGenerator:
     def __is_valid(
         self, note: Union[int, str], with_octave: bool, only_high_notes: bool
     ) -> bool:
-        '''Returns True if only_high_notes is False or note int is a high note.'''
+        """Returns True if only_high_notes is False or note int is a high note."""
         if with_octave and only_high_notes:
             if utils.get_note_octave(note) < utils.HIGH_NOTES_OCTAVE_THRESHOLD:
                 return False
@@ -110,11 +111,11 @@ class MusicGenerator:
         only_high_notes: bool,
         type: int,
     ) -> Optional[Tuple[int]]:
-        '''
+        """
         Chooses nth note tuple after n-1 prev tuples.
         Calculates ppbs of all possible nth notes and then chooses randomly
         with weights being the corresponding ppbs.
-        '''
+        """
         if len(prev_tuples) != self.mm.n - 1:
             raise ValueError("With n-gram there has to be n-1 previous notes!")
 
@@ -176,10 +177,10 @@ class MusicGenerator:
     def __specific_first_note(
         self, note: str, only_high_notes: bool, only_low_notes: bool = False
     ) -> int:
-        '''
+        """
         Chooses randomly first specific note int, e.g. 60 or 72 given a C note.
-        Narrows the range of notes to choose if only_high_notes or only_low_notes is True. 
-        '''
+        Narrows the range of notes to choose if only_high_notes or only_low_notes is True.
+        """
         low_end = (
             utils.HIGH_NOTES_OCTAVE_THRESHOLD
             if only_high_notes
@@ -201,11 +202,11 @@ class MusicGenerator:
         only_high_notes: bool,
         only_low_notes: bool = False,
     ) -> int:
-        '''
+        """
         Chooses the next closest note int to prev note, higher if go_up, lower otherwise.
         Restricts going outside of the used octaves (and high/low notes' range if specified).
         If can't choose based on go_up, chooses just the closest.
-        '''
+        """
         prev_note_octave = utils.get_note_octave(prev_note)
         possible_octaves = filter(
             lambda octave: utils.LOWEST_USED_OCTAVE
@@ -261,12 +262,12 @@ class MusicGenerator:
         start_of_bar: bool = False,
         first_note: Optional[Union[int, str]] = None,
     ) -> Optional[Tuple[Tuple[Tuple[Union[int, str]]], List[Tuple[Union[int, str]]]]]:
-        '''
+        """
         Chooses randomly the first n-1 note tuples of given type.
         If MusicGenerator has weighted_random_start set, chooses randomly with weights corresponding to n-1-grams counts in input music.
         Restricts to n-1-grams which started some bar in input, if start_of_bar is set.
         Restricts to n-1-grams starting with first_note, if specified.
-        '''
+        """
         if with_octave:
             if type == 0:
                 nminus1grams = self.mm.melody_nminus1grams
@@ -374,11 +375,11 @@ class MusicGenerator:
         bar_length: int,
         messages: Optional[List[Tuple[int, bool]]] = None,
     ) -> Tuple[Tuple[int], Tuple[Tuple[int]]]:
-        '''
-        Picks the next note tuple. If can't choose nth note after n-1 previous notes,makes a "new start", 
+        """
+        Picks the next note tuple. If can't choose nth note after n-1 previous notes,makes a "new start",
         choosing new first n-1 tuples, trying to choose n-1-gram with a first note same as the last generated note.
         Converts a note name to a specific note int, if with_octave is False.
-        '''
+        """
         if first_tuples:
             next_tuple = first_tuples.pop(0)
         else:
@@ -449,7 +450,7 @@ class MusicGenerator:
         instrument: int,
         melody: bool,
     ) -> MidiTrack:
-        '''Creates track and sets instrument.'''
+        """Creates track and sets instrument."""
         track = MidiTrack()
         mid.tracks.append(track)
 
@@ -466,7 +467,7 @@ class MusicGenerator:
         return track
 
     def _set_tempo(self, track: MidiTrack, tempo: Optional[int]) -> None:
-        '''Sets average tempo of input files or given tempo, if specified.'''
+        """Sets average tempo of input files or given tempo, if specified."""
         if tempo is not None:
             tempo = bpm2tempo(tempo)
         else:
@@ -474,13 +475,13 @@ class MusicGenerator:
         track.append(MetaMessage("set_tempo", tempo=tempo))
 
     def _set_key(self, track: MidiTrack) -> None:
-        '''Sets the track's key, if it was specified in the MarkovModel.'''
+        """Sets the track's key, if it was specified in the MarkovModel."""
         key = self.mm.main_key
         if key is not None:
             track.append(MetaMessage("key_signature", key=key))
 
     def _set_time_signature(self, track: MidiTrack) -> Tuple[int]:
-        '''Sets the time signature - specified in MarkovModel, or default 4/4.'''
+        """Sets the time signature - specified in MarkovModel, or default 4/4."""
         beats_per_bar, beat_value = self.mm.main_beats_per_bar, self.mm.main_beat_value
         track.append(
             MetaMessage(
@@ -493,7 +494,7 @@ class MusicGenerator:
         return beats_per_bar, beat_value
 
     def _print_track(self, output_file: str) -> None:
-        '''Prints the generated track's messages - for testing.'''
+        """Prints the generated track's messages - for testing."""
         print("Generated track:")
         test_mid = MidiFile(os.path.join(os.path.dirname(__file__), output_file))
         for track_idx, track in enumerate(test_mid.tracks):
@@ -503,7 +504,7 @@ class MusicGenerator:
 
     # ========================= MAIN GENERATING METHODS =================================================
     def _calculate_strong_beat_length(self, bar_length: int, beats_per_bar: int) -> int:
-        '''Calculates the distance between strong beats in a time signature.'''
+        """Calculates the distance between strong beats in a time signature."""
         strong_beat_length = bar_length
         # simple time signatures
         if beats_per_bar in [2, 3, 4]:
@@ -525,10 +526,10 @@ class MusicGenerator:
         velocity: int,
         channel: int,
     ) -> None:
-        '''
+        """
         Appends a tonic chord to messages, with base note closest to last chord's base note.
         Doesn't append anything if the track already ended with the tonic chord.
-        '''
+        """
         tonic_note = utils.get_tonic_note(self.mm.main_key)
         prev_base_note = sorted(list(prev_chord))[0]
         octave = utils.get_note_octave(prev_base_note)
@@ -546,7 +547,7 @@ class MusicGenerator:
                 )
 
     def _append_messages(self, track: MidiTrack, messages: List[Tuple]) -> None:
-        '''Sorts the messages by time, appends to MIDI track.'''
+        """Sorts the messages by time, appends to MIDI track."""
         messages.sort()
         prev_abs_time = 0
         for message in messages:
@@ -580,16 +581,17 @@ class MusicGenerator:
         melody_notes: Set[str],
         with_octave: bool,
         only_low_notes: bool,
+        key: str,
     ) -> Dict[Tuple, float]:
-        '''
+        """
         Filters the chords to choose in 1st generating method.
         If there is one melody note in the time frame, filters to only simple chords, which contain the melody note.
         If there are more melody notes, filters to chords having max possible common notes.
-        '''
+        """
         use_simple_chord = True
         if len(melody_notes) > 1:
             use_simple_chord = False
-        if with_octave:  # long and ugly
+        if with_octave:
             max_melody_match = max(
                 chord_ppbs.keys(),
                 key=lambda chord: len(
@@ -622,6 +624,15 @@ class MusicGenerator:
                             )
                         )
                         == max_melody_match
+                    )
+                    and ( # only diatonic chords
+                        key is None
+                        or all(
+                            [
+                                utils.get_note_name(note) in utils.get_key_notes(key)
+                                for note in chord
+                            ]
+                        )
                     ),
                     chord_ppbs.keys(),
                 )
@@ -636,7 +647,11 @@ class MusicGenerator:
                 for chord in filter(
                     lambda chord: (not use_simple_chord or utils.is_simple(chord, True))
                     and len(set.intersection(set(chord), melody_notes))
-                    == max_melody_match,
+                    == max_melody_match
+                    and ( # only diatonic chords
+                        key is None
+                        or all([note in utils.get_key_notes(key) for note in chord])
+                    ),
                     chord_ppbs.keys(),
                 )
             }
@@ -667,14 +682,15 @@ class MusicGenerator:
         long_chords: bool = False,
         # False - chords/arpeggios of strong beat length
         # True - chords/arpeggios of chord_frequency length
+        only_diatonic_chords: bool = False,
         end_on_tonic: bool = False,
     ) -> None:
-        '''
+        """
         Generates the melody (1st track) from MarkovModel melody n-grams, and then adds harmony supporting it (2nd track) -
         chords and arpeggios starting with strong beats/bars, which fit.
         Always generates in time signature (4/4 if not specified in MarkovModel).
         Saves the 2 tracks to output_file MIDI sequence.
-        '''
+        """
         new_mid = MidiFile(
             type=1, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
         )  # key, tempo and time signature in first track apply to all tracks
@@ -750,8 +766,7 @@ class MusicGenerator:
             time_in_strong_beat = total_time % strong_beat_length
             time_in_bar = total_time % bar_length
             if (  # maybe extend pause
-                time_in_strong_beat + next_note_length
-                > strong_beat_length
+                time_in_strong_beat + next_note_length > strong_beat_length
             ):
                 offset = (strong_beat_length - time_in_strong_beat) % strong_beat_length
                 if time_in_bar + offset + next_note_length > bar_length:
@@ -788,6 +803,7 @@ class MusicGenerator:
                         melody_notes,
                         with_octave,
                         only_low_notes_harmony,
+                        self.mm.main_key if only_diatonic_chords else None,
                     )
                     chords = list(filtered_chord_ppbs.keys())
                     ppbs = self.__normalize_ppbs(filtered_chord_ppbs)
@@ -874,7 +890,9 @@ class MusicGenerator:
             if total_time // bar_length > bar:
                 bar += 1
                 progress.update()
-            if total_time // bar_length >= bars or (total_time // bar_length >= bars - 1 and end_on_tonic):
+            if total_time // bar_length >= bars or (
+                total_time // bar_length >= bars - 1 and end_on_tonic
+            ):
                 if end_on_tonic:
                     if only_arpeggios:
                         tonic_note = utils.get_tonic_note(self.mm.main_key)
@@ -903,6 +921,7 @@ class MusicGenerator:
                             harmony_velocity,
                             1,
                         )
+                    progress.update()
                 break
 
             melody_notes.add(utils.get_note_name(next_note))
@@ -924,10 +943,10 @@ class MusicGenerator:
     def __change_note_octave(
         self, note: int, chord: List[int], only_high_notes: bool
     ) -> Optional[int]:
-        '''
+        """
         Moves the note to lower/higher octaves, if it doubles with one of chord's notes.
         Returns None if it didn't succeed (no place to put a note).
-        '''
+        """
         low_end = (
             utils.HIGH_NOTES_OCTAVE_THRESHOLD
             if only_high_notes
@@ -952,7 +971,7 @@ class MusicGenerator:
 
     # for broad_chords
     def __good_note(self, note: int, chord: Set[int]) -> bool:
-        '''Checks if note is at least 3 semitones away from other chord's notes.'''
+        """Checks if note is at least 3 semitones away from other chord's notes."""
         for chord_note in chord:
             if abs(note - chord_note) < 3:
                 return False
@@ -975,13 +994,13 @@ class MusicGenerator:
         end_on_tonic: bool = False,
         broad_chords: bool = False,
     ) -> None:
-        '''
+        """
         Generates the melody and harmony from MarkovModel harmony n-grams (all in 1 track).
         Generates in a time signature only if it was specified in MarkovModel.
         Saves the track to output_file MIDI sequence.
 
         Continues the music, if start_filepath is specified.
-        '''
+        """
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
         )  # one track
@@ -1074,8 +1093,7 @@ class MusicGenerator:
                 time_in_strong_beat = total_time % strong_beat_length
                 time_in_bar = total_time % bar_length
                 if (  # maybe extend until_next_note_start
-                    time_in_strong_beat + note_length
-                    > strong_beat_length
+                    time_in_strong_beat + note_length > strong_beat_length
                 ):
                     offset = (
                         strong_beat_length - time_in_strong_beat
@@ -1096,7 +1114,9 @@ class MusicGenerator:
             if total_time // bar_length > bar:
                 bar += 1
                 progress.update()
-            if total_time // bar_length >= bars or (total_time // bar_length >= bars - 1 and end_on_tonic):
+            if total_time // bar_length >= bars or (
+                total_time // bar_length >= bars - 1 and end_on_tonic
+            ):
                 if end_on_tonic:
                     self._add_tonic_chord(
                         prev_chord,
@@ -1107,6 +1127,7 @@ class MusicGenerator:
                         velocity,
                         0,
                     )
+                    progress.update()
                 break
             if next_note not in chord and (
                 not broad_chords or self.__good_note(next_note, chord)
@@ -1176,11 +1197,11 @@ class MusicGenerator:
         end_on_tonic: bool = False,
         broad_chords: bool = False,
     ) -> None:
-        '''
+        """
         Generates the melody and harmony from MarkovModel bar n-grams (all in 1 track).
         Generates always in time signature (default 4/4) - works best if most input songs were in this time signature.
         Saves the track to output_file MIDI sequence.
-        '''
+        """
         new_mid = MidiFile(
             type=0, ticks_per_beat=utils.DEFAULT_TICKS_PER_BEAT
         )  # one track
@@ -1230,7 +1251,9 @@ class MusicGenerator:
             if total_time // bar_length > bar:
                 bar += 1
                 progress.update()
-            if total_time // bar_length >= bars or (total_time // bar_length >= bars - 1 and end_on_tonic):
+            if total_time // bar_length >= bars or (
+                total_time // bar_length >= bars - 1 and end_on_tonic
+            ):
                 if end_on_tonic:
                     self._add_tonic_chord(
                         prev_chord,
@@ -1241,6 +1264,7 @@ class MusicGenerator:
                         velocity,
                         0,
                     )
+                    progress.update()
                 break
             if next_note is not None and (
                 len(chord) == 1

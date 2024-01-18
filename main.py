@@ -17,7 +17,8 @@ parser = argparse.ArgumentParser(
 # -------------------------------- REQUIRED ARGUMENTS ------------------------------------
 parser.add_argument(
     "input_path",
-    help="path to input .mid file (ending with .mid) or directory with .mid files (searches for them also recursively)",
+    help="path to input .mid file (ending with .mid) or directory with .mid files (searches for them also recursively).\n"
+    "If you write 'serialized', already parsed MIDI files from previous generation are retrieved from a serialized list."
 )
 parser.add_argument(
     "method",
@@ -239,6 +240,16 @@ melody_ngrams_optionals.add_argument(
     default=False,
 )
 
+# only diatonic chords
+melody_ngrams_optionals.add_argument(
+    "-od",
+    "--only-diatonic-chords",
+    action="store_true",
+    help="harmonize only with diatonic chords (all notes in a chord are from the key).\n"
+    "Note: it has no effect if you don't specify key.",
+    default=False,
+)
+
 # METHOD 2
 harmony_ngrams_optionals = parser.add_argument_group("options for method 2")
 
@@ -430,6 +441,7 @@ try:
             more_chords=args.more_chords,
             long_chords=args.long_chords,
             end_on_tonic=args.end_on_tonic,
+            only_diatonic_chords=args.only_diatonic_chords,
         )
     if args.method == 2 or args.method == "all":
         if args.method == "all":
