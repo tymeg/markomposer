@@ -18,11 +18,11 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     "input_path",
     help="path to input .mid file (ending with .mid) or directory with .mid files (searches for them also recursively).\n"
-    "If you write 'serialized', already parsed MIDI files from previous generation are retrieved from a serialized list."
+    "If you write 'serialized', already parsed MIDI files from previous generation are retrieved from a serialized list.",
 )
 parser.add_argument(
     "method",
-    choices=["1", "2", "3", "all"],
+    choices=["1", "2", "3", "all", "none"],
     help="generating method:\n"
     '1 - "melody n-grams" - melody from Markov chain, later harmonized with chords (/arpeggios) found in input (2 tracks)\n'
     "Please specify key signature with -k to get a good harmony.\n"
@@ -33,7 +33,9 @@ parser.add_argument(
     "2 is (usually) better for single instrument mids in different time signatures (e.g. classical piano music).\n"
     "You can always use 1, but it can generate music a bit less similar to input mids (with different harmony) than methods 2 and 3.\n\n"
     "Specifying 'all' will generate and play 3 songs (named ..._1.mid, ..._2.mid, ..._3.mid),\n"
-    "every time using different method and specified options, suitable for current method.",
+    "every time using different method and specified options, suitable for current method.\n\n"
+    "'none' makes program build model, but without generation. It is used to save text corpus for nanoGPT training\n"
+    "(which is always done nonetheless). Refer to repo's README for nanoGPT usage.\n\n",
 )
 parser.add_argument(
     "length",
@@ -229,7 +231,7 @@ melody_ngrams_optionals.add_argument(
     "-mc",
     "--more-chords",
     action="store_true",
-    help="chords/arpeggios every strong beat",
+    help="new chords/arpeggios every strong beat",
     default=False,
 )
 melody_ngrams_optionals.add_argument(
@@ -373,128 +375,129 @@ try:
     if mm.processed_mids == 0:
         raise ValueError("Couldn't process any mids! Try turning off key signature.")
 
-    generator = MusicGenerator(
-        mm,
-        k=args.top_k,
-        p=args.top_p,
-        uniform=args.uniform,
-        weighted_random_start=args.weighted_random_start,
-    )
+    if args.method != "none":
+        generator = MusicGenerator(
+            mm,
+            k=args.top_k,
+            p=args.top_p,
+            uniform=args.uniform,
+            weighted_random_start=args.weighted_random_start,
+        )
 
-    output_file = args.output_filename
-    if args.output_filename[-4:] != ".mid":
-        output_file += ".mid"
-    if args.method == "all":
-        name = output_file.split(".")[0]
-        output_files = [name + "_1.mid", name + "_2.mid", name + "_3.mid"]
+        output_file = args.output_filename
+        if args.output_filename[-4:] != ".mid":
+            output_file += ".mid"
+        if args.method == "all":
+            name = output_file.split(".")[0]
+            output_files = [name + "_1.mid", name + "_2.mid", name + "_3.mid"]
 
-    if args.tempo:
-        if args.time_signature:
-            tempo = bpm2tempo(args.tempo, map(int, args.time_signature.split("/")))
+        if args.tempo:
+            if args.time_signature:
+                tempo = bpm2tempo(args.tempo, map(int, args.time_signature.split("/")))
+            else:
+                tempo = bpm2tempo(args.tempo)
         else:
-            tempo = bpm2tempo(args.tempo)
-    else:
-        tempo = mm.main_tempo
+            tempo = mm.main_tempo
 
-    # convert minutes and seconds to bar (rounding up)
-    if ":" in args.length:
-        minutes, seconds = list(map(int, args.length.split(":")))
-        if minutes < 0 or seconds < 0 or (minutes <= 0 and seconds == 0):
-            raise ValueError("Time must be positive!")
-        seconds += 60 * minutes
-        ticks = second2tick(seconds, utils.DEFAULT_TICKS_PER_BEAT, tempo)
+        # convert minutes and seconds to bar (rounding up)
+        if ":" in args.length:
+            minutes, seconds = list(map(int, args.length.split(":")))
+            if minutes < 0 or seconds < 0 or (minutes <= 0 and seconds == 0):
+                raise ValueError("Time must be positive!")
+            seconds += 60 * minutes
+            ticks = second2tick(seconds, utils.DEFAULT_TICKS_PER_BEAT, tempo)
 
-        time_signature = args.time_signature
-        if not time_signature:
-            ticks_per_bar = utils.DEFAULT_BEATS_PER_BAR * utils.DEFAULT_TICKS_PER_BEAT
+            time_signature = args.time_signature
+            if not time_signature:
+                ticks_per_bar = utils.DEFAULT_BEATS_PER_BAR * utils.DEFAULT_TICKS_PER_BEAT
+            else:
+                beats_per_bar, beat_value = map(int, time_signature.split("/"))
+                ticks_per_bar = beats_per_bar * (
+                    utils.DEFAULT_TICKS_PER_BEAT / (beat_value / 4)
+                )
+            bars = math.ceil(ticks / ticks_per_bar)
         else:
-            beats_per_bar, beat_value = map(int, time_signature.split("/"))
-            ticks_per_bar = beats_per_bar * (
-                utils.DEFAULT_TICKS_PER_BEAT / (beat_value / 4)
+            bars = int(args.length)
+            if bars <= 0:
+                raise ValueError("Bars' number must be positive!")
+        tempo = tempo2bpm(tempo)
+
+        print("Generating music...")
+        if args.method == 1 or args.method == "all":
+            if args.method == "all":
+                output_file = output_files[0]
+            generator.generate_music_with_melody_ngrams(
+                output_file=output_file,
+                bars=bars,
+                instrument_melody=args.instrument_melody,
+                instrument_harmony=args.instrument_harmony,
+                melody_velocity=args.melody_velocity,
+                harmony_velocity=args.harmony_velocity,
+                with_octave=with_octave,
+                only_high_notes_melody=args.only_high_notes_melody,
+                only_low_notes_harmony=args.only_low_notes_harmony,
+                first_note=args.first_note,
+                tempo=tempo,
+                lengths_flatten_factor=args.flatten_after,
+                only_chords=args.only_chords,
+                only_arpeggios=args.only_arpeggios,
+                more_chords=args.more_chords,
+                long_chords=args.long_chords,
+                end_on_tonic=args.end_on_tonic,
+                only_diatonic_chords=args.only_diatonic_chords,
             )
-        bars = math.ceil(ticks / ticks_per_bar)
-    else:
-        bars = int(args.length)
-        if bars <= 0:
-            raise ValueError("Bars' number must be positive!")
-    tempo = tempo2bpm(tempo)
+        if args.method == 2 or args.method == "all":
+            if args.method == "all":
+                output_file = output_files[1]
+            generator.generate_music_with_harmony_ngrams(
+                output_file=output_file,
+                bars=bars,
+                instrument=args.instrument,
+                velocity=args.velocity,
+                with_octave=with_octave,
+                only_high_notes=args.only_high_notes,
+                first_note=args.first_note,
+                tempo=tempo,
+                lengths_flatten_factor=args.flatten_after,
+                strict_time_signature=args.strict_time_signature,
+                start_filepath=args.start_filepath,
+                end_on_tonic=args.end_on_tonic,
+                broad_chords=args.broad_chords,
+            )
+        if args.method == 3 or args.method == "all":
+            if args.method == "all":
+                output_file = output_files[2]
+            generator.generate_music_with_bar_ngrams(
+                output_file=output_file,
+                bars=bars,
+                instrument=args.instrument,
+                velocity=args.velocity,
+                with_octave=with_octave,
+                only_high_notes=args.only_high_notes,
+                first_note=args.first_note,
+                tempo=tempo,
+                end_on_tonic=args.end_on_tonic,
+                broad_chords=args.broad_chords,
+            )
 
-    print("Generating music...")
-    if args.method == 1 or args.method == "all":
-        if args.method == "all":
-            output_file = output_files[0]
-        generator.generate_music_with_melody_ngrams(
-            output_file=output_file,
-            bars=bars,
-            instrument_melody=args.instrument_melody,
-            instrument_harmony=args.instrument_harmony,
-            melody_velocity=args.melody_velocity,
-            harmony_velocity=args.harmony_velocity,
-            with_octave=with_octave,
-            only_high_notes_melody=args.only_high_notes_melody,
-            only_low_notes_harmony=args.only_low_notes_harmony,
-            first_note=args.first_note,
-            tempo=tempo,
-            lengths_flatten_factor=args.flatten_after,
-            only_chords=args.only_chords,
-            only_arpeggios=args.only_arpeggios,
-            more_chords=args.more_chords,
-            long_chords=args.long_chords,
-            end_on_tonic=args.end_on_tonic,
-            only_diatonic_chords=args.only_diatonic_chords,
-        )
-    if args.method == 2 or args.method == "all":
-        if args.method == "all":
-            output_file = output_files[1]
-        generator.generate_music_with_harmony_ngrams(
-            output_file=output_file,
-            bars=bars,
-            instrument=args.instrument,
-            velocity=args.velocity,
-            with_octave=with_octave,
-            only_high_notes=args.only_high_notes,
-            first_note=args.first_note,
-            tempo=tempo,
-            lengths_flatten_factor=args.flatten_after,
-            strict_time_signature=args.strict_time_signature,
-            start_filepath=args.start_filepath,
-            end_on_tonic=args.end_on_tonic,
-            broad_chords=args.broad_chords,
-        )
-    if args.method == 3 or args.method == "all":
-        if args.method == "all":
-            output_file = output_files[2]
-        generator.generate_music_with_bar_ngrams(
-            output_file=output_file,
-            bars=bars,
-            instrument=args.instrument,
-            velocity=args.velocity,
-            with_octave=with_octave,
-            only_high_notes=args.only_high_notes,
-            first_note=args.first_note,
-            tempo=tempo,
-            end_on_tonic=args.end_on_tonic,
-            broad_chords=args.broad_chords,
-        )
-
-    # ---------------------------- PLAY MUSIC --------------------------------------
-    if args.method != "all":
-        output_files = [output_file]
-    for output_file in output_files:
-        print("----------------------")
-        print(f"File saved as {output_file}.\nPlaying music... Ctrl+C to stop")
-        new_mid_path = os.path.join(os.getcwd(), output_file)
-        pygame.mixer.init(44100, -16, 2, 1024)
-        try:
-            clock = pygame.time.Clock()
-            pygame.mixer.music.load(new_mid_path)
-            pygame.mixer.music.play()
-            while pygame.mixer.music.get_busy():
-                clock.tick(60)
-        except KeyboardInterrupt:
-            pygame.mixer.music.fadeout(1000)
-            pygame.mixer.music.stop()
-            raise SystemExit
+        # ---------------------------- PLAY MUSIC --------------------------------------
+        if args.method != "all":
+            output_files = [output_file]
+        for output_file in output_files:
+            print("----------------------")
+            print(f"File saved as {output_file}.\nPlaying music... Ctrl+C to stop")
+            new_mid_path = os.path.join(os.getcwd(), output_file)
+            pygame.mixer.init(44100, -16, 2, 1024)
+            try:
+                clock = pygame.time.Clock()
+                pygame.mixer.music.load(new_mid_path)
+                pygame.mixer.music.play()
+                while pygame.mixer.music.get_busy():
+                    clock.tick(60)
+            except KeyboardInterrupt:
+                pygame.mixer.music.fadeout(1000)
+                pygame.mixer.music.stop()
+                raise SystemExit
 
 except ValueError as e:
     print(e)

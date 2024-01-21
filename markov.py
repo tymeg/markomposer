@@ -154,9 +154,11 @@ class MarkovModel:
             self.processed_mids = 0
 
             if dir and pathname == "serialized":
+                print("Loading serialized MIDI...")
                 mids = pickle.load(open(os.path.join(os.path.dirname(__file__), pathname), "rb"))
             else:
                 self.__collect_mid_files(dir, mids)
+                print("Serializing MIDI...")
                 pickle.dump(mids, open(os.path.join(os.path.dirname(__file__), "serialized"), "wb"))
 
             print("Processing mid tracks and creating Markov model...")

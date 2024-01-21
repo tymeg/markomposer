@@ -12,9 +12,9 @@ class FromFileMusicGenerator(MusicGenerator):
         self,
         input_filepath: str,
         output_file: str,
-        instrument: int,
+        instrument: int = 0,
         velocity: int = utils.DEFAULT_VELOCITY,
-        tempo: Optional[int] = None,
+        tempo: Optional[int] = utils.DEFAULT_TEMPO,
         lengths_flatten_factor: Optional[int] = None,
         strict_time_signature: Optional[bool] = False,
         broad_chords: bool = False,
@@ -51,8 +51,9 @@ class FromFileMusicGenerator(MusicGenerator):
         # ADDING MESSAGES LOOP
         chord = set()
         total_time = 0
+        # tuples.pop(0) # get rid of START
         # for tuple in tuples:
-        # next_note, note_length, until_next_note_start = map(int, tuple.split(","))
+        #     next_note, note_length, until_next_note_start = map(int, tuple.split(","))
         values.pop(0)  # get rid of START
         while values:
             until_next_note_start, next_note, note_length = (
@@ -156,46 +157,41 @@ class FromFileMusicGenerator(MusicGenerator):
 
 
 # pathname=None creates a MarkovModel object without processing any mids
-mm_4_4 = MarkovModel(
-    n=3,
-    dir=True,
-    pathname=None,
-    merge_tracks=True,
-    ignore_bass=True,
-    key="C",
-    time_signature="4/4",
-    lengths_flatten_factor=2,
-)
-
 mm = MarkovModel(
-    n=3,
+    n=None,
     dir=True,
     pathname=None,
-    merge_tracks=True,
-    ignore_bass=True,
-    key="C",
+    merge_tracks=None,
+    ignore_bass=None,
     # lengths_flatten_factor=2,
 )
+
+# perform aligning notes to time signature's accents
+# mm_4_4 = MarkovModel(
+#     n=None,
+#     dir=True,
+#     pathname=None,
+#     merge_tracks=None,
+#     ignore_bass=None,
+#     time_signature="4/4",
+#     lengths_flatten_factor=2,
+# )
 
 generator = FromFileMusicGenerator(mm)
 generator.generate_music_from_file_nanogpt(
     input_filepath="nanoGPT/test0.txt",
     output_file="test_gpt1.mid",
-    instrument=0,
-    tempo=80,
 )
-generator.generate_music_from_file_nanogpt(
-    input_filepath="nanoGPT/test0.txt",
-    output_file="test_gpt2.mid",
-    instrument=0,
-    lengths_flatten_factor=2,
-    tempo=80,
-)
+# generator.generate_music_from_file_nanogpt(
+#     input_filepath="nanoGPT/test0.txt",
+#     output_file="test_gpt2.mid",
+#     lengths_flatten_factor=2,
+#     tempo=80,
+# )
 
 # generator_4_4 = FromFileMusicGenerator(mm_4_4)
 # generator_4_4.generate_music_from_file_nanogpt(
 #     input_filepath="nanoGPT/test0.txt",
 #     output_file="test_gpt4_4_4.mid",
-#     instrument=0,
 #     tempo=80,
 # )

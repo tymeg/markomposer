@@ -884,7 +884,7 @@ class MusicGenerator:
                                 )
                             )
                     prev_chord = chord
-                    start_time += chord_length
+                    start_time += chord_frequency
                 melody_notes = set()
 
             if total_time // bar_length > bar:
