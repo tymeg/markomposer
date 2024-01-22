@@ -2,7 +2,7 @@ import os
 import pickle
 import numpy as np
 
-input_file_path = os.path.join(os.path.dirname(__file__), "input1.txt")
+input_file_path = os.path.join(os.path.dirname(__file__), "input.txt")
 
 with open(input_file_path, "r") as f:
     data = f.read()
