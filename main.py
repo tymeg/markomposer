@@ -34,8 +34,8 @@ parser.add_argument(
     "You can always use 1, but it can generate music a bit less similar to input mids (with different harmony) than methods 2 and 3.\n\n"
     "Specifying 'all' will generate and play 3 songs (named ..._1.mid, ..._2.mid, ..._3.mid),\n"
     "every time using different method and specified options, suitable for current method.\n\n"
-    "'none' makes program build model, but without generation. It is used to save text corpus for nanoGPT training\n"
-    "(which is always done nonetheless). Refer to repo's README for nanoGPT usage.\n\n",
+    "'none' makes program build model, but without generation (ignores length, output_filename and generation specific options).\n" 
+    "It is used to save text corpus for nanoGPT training (which is always done nonetheless). Refer to repo's README for nanoGPT usage.\n\n",
 )
 parser.add_argument(
     "length",
@@ -350,7 +350,7 @@ try:
     if args.max_tracks is not None and args.max_tracks <= 0:
         raise ValueError("max_tracks must be int >= 1")
 
-    if args.method != "all":
+    if args.method != "all" and args.method != "none":
         args.method = int(args.method)
 
     if args.end_on_tonic and not args.key_signature:
