@@ -1,7 +1,7 @@
 # train a miniature note-level music generation model
 # good for debugging and playing on macbooks and such
 
-out_dir = 'out-music-2flat-4-4'
+out_dir = 'out-music'
 eval_interval = 200 # keep frequent because we'll overfit
 eval_iters = 200
 log_interval = 10 # don't print too often
@@ -15,7 +15,7 @@ wandb_run_name = 'mini-gpt'
 
 dataset = 'music'
 gradient_accumulation_steps = 4
-batch_size = 2
+batch_size = 16
 block_size = 256 # context of up to 256 previous characters
 
 # baby GPT model :)

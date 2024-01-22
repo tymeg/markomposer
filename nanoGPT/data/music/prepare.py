@@ -1,13 +1,6 @@
 import os
-import sys
 import pickle
 import numpy as np
-
-current_dir = os.path.dirname(__file__)
-project_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-
-sys.path.append(project_dir)
-# from utils import ALL_NOTES_COUNT
 
 input_file_path = os.path.join(os.path.dirname(__file__), "input1.txt")
 
@@ -19,12 +12,6 @@ print(f"length of dataset in characters: {len(data):,}")
 # in specific format: e.g. I0 N60 L120
 input_values = data.split()
 print(f"approximate length of dataset in notes: {len(input_values) // 3:,}")
-# print(f"number of note lengths: {len(generator.note_lengths_range)}, number of interval lengths: {len(generator.until_next_note_range)}")
-
-# vocab consists of all valid values
-# notes = list(map(lambda note: "N" + str(note), range(ALL_NOTES_COUNT)))
-# note_lengths = list(map(lambda length: "L" + str(length), generator.note_lengths_range))
-# until_next_note_starts = list(map(lambda length: "I" + str(length), generator.until_next_note_range))
 
 # vocab consists of values only from input_values
 vocab = sorted(list(set(input_values)))
@@ -78,5 +65,5 @@ meta = {
     "itos": itos,
     "stoi": stoi,
 }
-with open(os.path.join(os.path.dirname(__file__), "meta_2flat_4_4.pkl"), "wb") as f:
+with open(os.path.join(os.path.dirname(__file__), "meta.pkl"), "wb") as f:
     pickle.dump(meta, f)

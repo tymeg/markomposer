@@ -133,7 +133,7 @@ iter_num = 0
 best_val_loss = 1e9
 
 # attempt to derive vocab_size from the dataset
-meta_path = os.path.join(data_dir, 'meta_2flat_4_4.pkl')
+meta_path = os.path.join(data_dir, 'meta.pkl')
 meta_vocab_size = None
 if os.path.exists(meta_path):
     with open(meta_path, 'rb') as f:

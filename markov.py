@@ -137,15 +137,9 @@ class MarkovModel:
         if pathname is not None:
             self.path = os.path.join(os.getcwd(), pathname)  # CWD
             # self.path = os.path.join(os.path.dirname(__file__), pathname) # directory of markov.py
-            self.notes_list_file1 = open(
+            self.notes_list_file = open(
                 os.path.join(
-                    os.path.dirname(__file__), "nanoGPT/data/music/input1.txt"
-                ),
-                "w",
-            )
-            self.notes_list_file2 = open(
-                os.path.join(
-                    os.path.dirname(__file__), "nanoGPT/data/music/input2.txt"
+                    os.path.dirname(__file__), "nanoGPT/data/music/input.txt"
                 ),
                 "w",
             )
@@ -171,8 +165,7 @@ class MarkovModel:
             else:
                 self.main_tempo = utils.DEFAULT_TEMPO
 
-            self.notes_list_file1.close()
-            self.notes_list_file2.close()
+            self.notes_list_file.close()
 
     def __collect_mid_files(self, dir: bool, mids: List[MidiFile]) -> None:
         """Collects .mid file or files from dir."""
@@ -318,18 +311,13 @@ class MarkovModel:
                 self.bar_nminus1grams_without_octaves,
             )
 
-            self.notes_list_file1.write("START ")
-            self.notes_list_file2.write("START ")
+            self.notes_list_file.write("START ")
             # append to file for nanoGPT
             for note, note_length, until_next_note_start in harmony_tuples:
-                self.notes_list_file1.write(
+                self.notes_list_file.write(
                     f"I{str(until_next_note_start)} N{str(note)} L{str(note_length)} "
                 )
-                self.notes_list_file2.write(
-                    f"{str(note)},{str(note_length)},{str(until_next_note_start)} "
-                )
-            self.notes_list_file1.write("END\n")
-            self.notes_list_file2.write("END\n")
+            self.notes_list_file.write("END\n")
 
     def __transpose_track(
         self, note_lengths: List[Tuple[int, bool]]

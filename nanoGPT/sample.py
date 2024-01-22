@@ -17,22 +17,13 @@ init_from = (
     "resume"  # either 'resume' (from an out_dir) or a gpt2 variant (e.g. 'gpt2-xl')
 )
 out_dir = "out"  # ignored if init_from is not 'resume'
-# start = [
-#     "START",
-#     # "I0",
-#     # "N81",
-#     # "L120",
-#     # "I0",
-#     # "N74",
-#     # "L120",
-#     # "I240",
-#     # "N77",
-#     # "L120",
-# ]  # or "<|endoftext|>" or etc. Can also specify a file, use as: "FILE:prompt.txt"
-start = "FILE:start.txt"
-# start = " "
+start = [
+    "START",
+]  # or "<|endoftext|>" or etc.
+# or start from file:
+# start = ['FILE']
 num_samples = 1  # number of samples to draw
-max_new_tokens = 2100  # number of tokens generated in each sample
+max_new_tokens = 3000  # number of tokens generated in each sample
 temperature = (
     0.8  # 1.0 = no change, < 1.0 = less random, > 1.0 = more random, in predictions
 )
@@ -113,8 +104,8 @@ if load_meta:
 #     decode = lambda l: enc.decode(l)
 
 # encode the beginning of the prompt
-if start.startswith('FILE:'):
-    with open(start[5:], 'r', encoding='utf-8') as f:
+if start[0] == 'FILE':
+    with open("start.txt", 'r', encoding='utf-8') as f:
         start = f.read().split(" ")
 start_ids = encode(start)
 x = torch.tensor(start_ids, dtype=torch.long, device=device)[None, ...]
@@ -147,8 +138,6 @@ for k in range(num_samples):
     content = start
     for i in range(max_new_tokens):
         distribution = gpt_token_distribution(content)
-        # print(distribution)
-        # print()
 
         # del distribution["END"]
 
