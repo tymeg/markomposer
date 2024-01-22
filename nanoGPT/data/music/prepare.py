@@ -38,7 +38,7 @@ def decode(tokens):
 
 # create the train and test splits
 n = len(input_values)
-border = int(n * 0.7)
+border = int(n * 0.8)
 train_data = input_values[: border]
 val_data = input_values[border :]
 

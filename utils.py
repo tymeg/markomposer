@@ -222,7 +222,7 @@ def transpose(
             else:
                 diff %= 12
 
-    if get_note_octave(note) == LOWEST_USED_OCTAVE:  # transpose up
+    if get_note_octave(note) <= LOWEST_USED_OCTAVE:  # transpose up
         if diff < 0:
             diff += 12
     else:  # transpose down
