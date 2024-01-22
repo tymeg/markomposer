@@ -420,6 +420,8 @@ class MarkovModel:
                             if currently_playing_notes_starts.get(msg.note):
                                 start = currently_playing_notes_starts[msg.note]
                                 note = msg.note
+                                while note < 0: # unusual rare situations (corrupted file formats?)
+                                    note += 12
 
                                 meter_start = 0
                                 if self.__bar_lengths:

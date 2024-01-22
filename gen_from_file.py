@@ -14,7 +14,7 @@ class FromFileMusicGenerator(MusicGenerator):
         output_file: str,
         instrument: int = 0,
         velocity: int = utils.DEFAULT_VELOCITY,
-        tempo: Optional[int] = utils.DEFAULT_TEMPO,
+        tempo: Optional[int] = utils.DEFAULT_BPM,
         lengths_flatten_factor: Optional[int] = None,
         strict_time_signature: Optional[bool] = False,
         broad_chords: bool = False,
