@@ -40,8 +40,6 @@ class FromFileMusicGenerator(MusicGenerator):
             )
             time_in_strong_beat = 0
 
-        # with open(input_filepath) as f:
-        #     tuples = f.read().split()
         with open(input_filepath) as f:
             values = f.read().split()
 
@@ -51,11 +49,11 @@ class FromFileMusicGenerator(MusicGenerator):
         # ADDING MESSAGES LOOP
         chord = set()
         total_time = 0
-        # tuples.pop(0) # get rid of START
-        # for tuple in tuples:
-        #     next_note, note_length, until_next_note_start = map(int, tuple.split(","))
         values.pop(0)  # get rid of START
         while values:
+            if len(values) < 3:
+                break
+
             until_next_note_start, next_note, note_length = (
                 int(values[0][1:]),
                 int(values[1][1:]),
@@ -64,7 +62,7 @@ class FromFileMusicGenerator(MusicGenerator):
             for _ in range(3):
                 values.pop(0)
 
-            if lengths_flatten_factor is not None or self.mm.fixed_time_signature:
+            if lengths_flatten_factor is not None:
                 note_length, until_next_note_start = self.mm.round_time(
                     note_length,
                     True,
@@ -163,7 +161,6 @@ mm = MarkovModel(
     pathname=None,
     merge_tracks=None,
     ignore_bass=None,
-    # lengths_flatten_factor=2,
 )
 
 # perform aligning notes to time signature's accents
@@ -174,13 +171,12 @@ mm = MarkovModel(
 #     merge_tracks=None,
 #     ignore_bass=None,
 #     time_signature="4/4",
-#     lengths_flatten_factor=2,
 # )
 
 generator = FromFileMusicGenerator(mm)
 generator.generate_music_from_file_nanogpt(
     input_filepath="nanoGPT/test0.txt",
-    output_file="test_gpt1.mid",
+    output_file="test_gpt.mid",
 )
 # generator.generate_music_from_file_nanogpt(
 #     input_filepath="nanoGPT/test0.txt",
@@ -192,6 +188,5 @@ generator.generate_music_from_file_nanogpt(
 # generator_4_4 = FromFileMusicGenerator(mm_4_4)
 # generator_4_4.generate_music_from_file_nanogpt(
 #     input_filepath="nanoGPT/test0.txt",
-#     output_file="test_gpt4_4_4.mid",
-#     tempo=80,
+#     output_file="test_gpt4_4.mid",
 # )
