@@ -271,6 +271,15 @@ harmony_ngrams_optionals.add_argument(
     default=False,
 )
 
+# max chord size
+harmony_ngrams_optionals.add_argument(
+    "-mcs",
+    "--max-chord-size",
+    help="maximum number of notes in a generated chord (more precisely: notes starting at the same moment). Default: 3.",
+    type=int,
+    default=3,
+)
+
 # METHOD 1 AND 2
 melody_and_harmony_ngrams_optionals = parser.add_argument_group(
     "options for method 1 and 2"
@@ -462,6 +471,7 @@ try:
                 strict_time_signature=args.strict_time_signature,
                 start_filepath=args.start_filepath,
                 end_on_tonic=args.end_on_tonic,
+                max_chord_size=args.max_chord_size,
                 broad_chords=args.broad_chords,
             )
         if args.method == 3 or args.method == "all":

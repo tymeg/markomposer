@@ -12,8 +12,7 @@ DEFAULT_VELOCITY = 64
 # length precision
 SHORTEST_NOTE = 32
 
-# chords' restrictions - for method 2
-MAX_CHORD_SIZE = 3
+# too big chord is sliced, next one is straight after previous - for method 2
 UNTIL_NEXT_CHORD = 1
 
 # instruments

@@ -992,6 +992,7 @@ class MusicGenerator:
         strict_time_signature: bool = False,
         start_filepath: Optional[str] = None,
         end_on_tonic: bool = False,
+        max_chord_size: int = 3,
         broad_chords: bool = False,
     ) -> None:
         """
@@ -1082,7 +1083,7 @@ class MusicGenerator:
                 next_note = self.__change_note_octave(next_note, chord, only_high_notes)
 
             if (
-                until_next_note_start == 0 and len(chord) == utils.MAX_CHORD_SIZE - 1
+                until_next_note_start == 0 and len(chord) == max_chord_size - 1
             ) or next_note is None:
                 # start new chord
                 until_next_note_start = utils.UNTIL_NEXT_CHORD * note_length

@@ -17,6 +17,7 @@ class FromFileMusicGenerator(MusicGenerator):
         tempo: Optional[int] = utils.DEFAULT_BPM,
         lengths_flatten_factor: Optional[int] = None,
         strict_time_signature: Optional[bool] = False,
+        max_chord_size: int = 3,
         broad_chords: bool = False,
     ) -> None:
         '''
@@ -75,7 +76,7 @@ class FromFileMusicGenerator(MusicGenerator):
                     lengths_flatten_factor,
                 )
 
-            if until_next_note_start == 0 and len(chord) == utils.MAX_CHORD_SIZE - 1:
+            if until_next_note_start == 0 and len(chord) == max_chord_size - 1:
                 # start new chord
                 until_next_note_start = utils.UNTIL_NEXT_CHORD * note_length
 
@@ -164,14 +165,14 @@ mm = MarkovModel(
 )
 
 # perform aligning notes to time signature's accents
-# mm_4_4 = MarkovModel(
-#     n=None,
-#     dir=True,
-#     pathname=None,
-#     merge_tracks=None,
-#     ignore_bass=None,
-#     time_signature="4/4",
-# )
+mm_4_4 = MarkovModel(
+    n=None,
+    dir=True,
+    pathname=None,
+    merge_tracks=None,
+    ignore_bass=None,
+    time_signature="4/4",
+)
 
 generator = FromFileMusicGenerator(mm)
 generator.generate_music_from_file_nanogpt(
@@ -182,11 +183,10 @@ generator.generate_music_from_file_nanogpt(
 #     input_filepath="nanoGPT/test0.txt",
 #     output_file="test_gpt2.mid",
 #     lengths_flatten_factor=2,
-#     tempo=80,
 # )
 
 # generator_4_4 = FromFileMusicGenerator(mm_4_4)
 # generator_4_4.generate_music_from_file_nanogpt(
 #     input_filepath="nanoGPT/test0.txt",
-#     output_file="test_gpt4_4.mid",
+#     output_file="test_gpt4-4.mid",
 # )
