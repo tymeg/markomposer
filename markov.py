@@ -187,7 +187,7 @@ class MarkovModel:
                         except Exception:
                             print(f"\nError - corrupted file: skipped {file}")
             if not mids:
-                raise ValueError("No uncorrupted .mid files of type 0 or 1 in given directory!")
+                raise ValueError("No uncorrupted .mid files of type 0 or 1 in given directory! (or maybe you meant a single file? Path must end with .mid)")
         else:  # assumes file is of .mid extension
             mid_file = MidiFile(self.path)
             if mid_file.type == 2:

@@ -146,8 +146,8 @@ sampling.add_argument(
     help="sampling nth note from uniform distribution",
     default=False,
 )
-sampling.add_argument("--top_k", type=int, help="k for top-k sampling, k is int > 0")
-sampling.add_argument("--top_p", type=float, help="p for top-p sampling, p from [0; 1]")
+sampling.add_argument("--top-k", type=int, help="k for top-k sampling, k is int > 0")
+sampling.add_argument("--top-p", type=float, help="p for top-p sampling, p from [0; 1]")
 parser.add_argument(
     "-w",
     "--weighted-random-start",

@@ -17,7 +17,7 @@ class FromFileMusicGenerator(MusicGenerator):
         tempo: Optional[int] = utils.DEFAULT_BPM,
         lengths_flatten_factor: Optional[int] = None,
         strict_time_signature: Optional[bool] = False,
-        max_chord_size: int = 3,
+        max_chord_size: int = utils.DEFAULT_MAX_CHORD_SIZE,
         broad_chords: bool = False,
     ) -> None:
         '''

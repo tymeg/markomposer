@@ -854,21 +854,21 @@ class MusicGenerator:
                         arp = random.choice(list(permutations(chord)))[:arp_len]
 
                         note_len = chord_length // len(arp)
+                        note_start_time = start_time
                         for note in arp:
                             messages.append(
-                                (start_time, note, True, harmony_velocity, 1)
+                                (note_start_time, note, True, harmony_velocity, 1)
                             )
                             messages.append(
                                 (
-                                    start_time + note_len,
+                                    note_start_time + note_len,
                                     note,
                                     False,
                                     harmony_velocity,
                                     1,
                                 )
                             )
-                            start_time += note_len
-                        start_time = total_time
+                            note_start_time += note_len
                     else:
                         for note in chord:
                             messages.append(
@@ -992,7 +992,7 @@ class MusicGenerator:
         strict_time_signature: bool = False,
         start_filepath: Optional[str] = None,
         end_on_tonic: bool = False,
-        max_chord_size: int = 3,
+        max_chord_size: int = utils.DEFAULT_MAX_CHORD_SIZE,
         broad_chords: bool = False,
     ) -> None:
         """

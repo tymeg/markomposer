@@ -5,9 +5,7 @@ import os
 import pickle
 from contextlib import nullcontext
 import torch
-from scipy.special import softmax
 
-# import tiktoken
 from model import GPTConfig, GPT
 from torch.nn import functional as F
 import numpy as np
@@ -96,12 +94,6 @@ if load_meta:
     stoi, itos = meta["stoi"], meta["itos"]
     encode = lambda s: [stoi[c] for c in s]
     decode = lambda l: " ".join([itos[i] for i in l])
-# else:
-#     # ok let's assume gpt-2 encodings by default
-#     print("No meta.pkl found, assuming GPT-2 encodings...")
-#     enc = tiktoken.get_encoding("gpt2")
-#     encode = lambda s: enc.encode(s, allowed_special={"<|endoftext|>"})
-#     decode = lambda l: enc.decode(l)
 
 # encode the beginning of the prompt
 if start[0] == 'FILE':
@@ -139,8 +131,6 @@ for k in range(num_samples):
     for i in range(max_new_tokens):
         distribution = gpt_token_distribution(content)
 
-        # del distribution["END"]
-
         # force correct type of token symbol
         distribution = {
             key: ppb
@@ -150,14 +140,12 @@ for k in range(num_samples):
         }
 
         ppbs = list(distribution.values())
-        # ppbs = softmax(ppbs)
 
         # normalize
         ppbs = np.array(ppbs, dtype="float64")
         ppbs /= ppbs.sum()
 
         token = np.random.choice(list(distribution.keys()), p=ppbs)
-        # token = max(distribution, key=distribution.get)
         content.append(token)
 
     output = " ".join(content) 
@@ -165,14 +153,3 @@ for k in range(num_samples):
     print('---------------')
     with open(f"test{k}.txt", "w") as f:
         f.write(output)
-    
-
-# run generation
-# with torch.no_grad():
-#     with ctx:
-#         for k in range(num_samples):
-#             y = model.generate(x, max_new_tokens, temperature=temperature, top_k=top_k)
-#             with open("test.txt", "w") as f:
-#                 f.write(str(y[0].tolist()))
-#             print(decode(y[0].tolist()))
-#             print('---------------')

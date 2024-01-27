@@ -14,6 +14,7 @@ SHORTEST_NOTE = 32
 
 # too big chord is sliced, next one is straight after previous - for method 2
 UNTIL_NEXT_CHORD = 1
+DEFAULT_MAX_CHORD_SIZE = 3
 
 # instruments
 DRUM_CHANNEL = 9
