@@ -2,7 +2,7 @@ import os
 import pickle
 import numpy as np
 
-input_file_path = os.path.join(os.path.dirname(__file__), "input.txt")
+input_file_path = os.path.join(os.path.dirname(__file__), "input_cleanmidi.txt")
 
 with open(input_file_path, "r") as f:
     data = f.read()
@@ -11,6 +11,7 @@ print(f"length of dataset in characters: {len(data):,}")
 # until_next_note_start note note_length separated by spaces
 # in specific format: e.g. I0 N60 L120
 input_values = data.split()
+print(f"length of dataset in tokens: {len(input_values):,}")
 print(f"approximate length of dataset in notes: {len(input_values) // 3:,}")
 
 # vocab consists of values only from input_values
