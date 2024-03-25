@@ -3,6 +3,9 @@ Generating music with Markov models, music theory and nanoGPT langugage model!
 
 Model is trained on passed MIDI datasets. You can customize key, tempo, time signature and other parameters of composed music. Have fun!
 
+Here are some music output examples:
+https://drive.google.com/drive/folders/1p5AKeCzYQy3ooQyeQcyJzoWSV2pQXSfh?usp=drive_link
+
 **Required:** Python 3 (tested >= 3.8).  
 **Necessary libraries:**
 
